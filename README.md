@@ -1,2 +1,2 @@
 # EPSS-Calculate
-TEST
+EPSS Lookup is a modern GitHub Pages web app that fetches FIRST EPSS scores for CVE IDs using both quick search and Excel upload workflows. Users can paste single or multiple CVEs, or upload an .xlsx file to automatically detect CVEs row-wise (even with messy formatting or header typos), fetch EPSS in batches of up to 100 CVEs per request, and export a new Excel file with added columns like EPSS Score, Percentile, Date, and CVEs Found. The UI is responsive, modern, includes visual elements (slider + chart), and handles common errors such as invalid CVE formats, missing results, network/API failures, and inconsistent spreadsheet data.
