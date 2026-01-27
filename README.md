@@ -78,4 +78,4 @@ Uses FIRST EPSS API:
 
 ## 📜 License
 
-MIT (or any license you prefer)
+fast.org
