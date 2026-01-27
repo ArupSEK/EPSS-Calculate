@@ -3,214 +3,184 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>EPSS Lookup (CVE → EPSS) | GitHub Pages</title>
+  <title>EPSS Lookup (CVE → EPSS)</title>
   <link rel="stylesheet" href="styles.css" />
-  <meta name="description" content="Fetch EPSS scores for CVEs individually or from Excel uploads. Adds EPSS columns and exports a new Excel." />
 
   <!-- SheetJS (Excel read/write) -->
-  <!-- Official browser script example from SheetJS docs :contentReference[oaicite:3]{index=3} -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0/frontend/xlsx.full.min.js"></script>
 
-  <!-- Chart.js for a quick distribution chart -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
+  <!-- Top Bar -->
   <header class="topbar">
     <div class="container topbar__inner">
       <div class="brand">
         <div class="brand__logo">EP</div>
         <div class="brand__text">
           <div class="brand__name">EPSS Lookup</div>
-          <div class="brand__sub">CVE → EPSS (Excel + Search)</div>
+          <div class="brand__sub">CVE → EPSS (Search + Excel Upload)</div>
         </div>
       </div>
 
-<div class="topbar__actions">
-  <div class="devBadge" title="Developed by Arup Basak">
-    <div class="devBadge__dot"></div>
-    <div class="devBadge__text">Developed by <b>Arup Basak</b></div>
-  </div>
+      <div class="topbar__actions">
+        <!-- Animated "Developed by" Badge -->
+        <div class="devBadge" title="Developed by Arup Basak">
+          <div class="devBadge__dot"></div>
+          <div class="devBadge__text">Developed by <b>Arup Basak</b></div>
+        </div>
 
-  <a class="btn btn--ghost" target="_blank" rel="noreferrer"
-     href="https://www.first.org/epss/api">API Docs</a>
+        <a class="btn btn--ghost btn--small" target="_blank" rel="noreferrer"
+           href="https://www.first.org/epss/api">FIRST EPSS API</a>
       </div>
     </div>
   </header>
 
   <main class="container">
-    <section class="hero card">
-      <div class="hero__left">
-        <h1>Modern EPSS scoring — single CVE or Excel upload</h1>
-        <p class="muted">
-          Paste CVEs, upload your workbook, and export a new sheet with EPSS columns.
-          Uses FIRST EPSS API. :contentReference[oaicite:4]{index=4}
-        </p>
+    <!-- Hero -->
+    <section class="card hero">
+      <div>
+        <h1>EPSS Lookup</h1>
+        <div class="muted">
+          Fetch EPSS scores from CVE IDs — paste CVEs, or upload an Excel file and add an EPSS column.
+        </div>
 
         <div class="hero__stats">
-          <div class="pill">Batching: 100 CVEs/request</div>
-          <div class="pill">Regex typo-tolerant CVE detection</div>
-          <div class="pill">Exports .xlsx with new columns</div>
+          <div class="pill">✅ Batch up to <b>100 CVEs</b>/request</div>
+          <div class="pill">✅ Column toggles (EPSS / Percentile / Date)</div>
+          <div class="pill">✅ Copy table → paste into Excel</div>
         </div>
 
+        <!-- Tabs -->
         <div class="tabs">
-          <button class="tab tab--active" data-tab="search">Quick Search</button>
-          <button class="tab" data-tab="excel">Excel Upload</button>
+          <button class="tab tab--active" data-tab="search" type="button">Quick Search</button>
+          <button class="tab" data-tab="excel" type="button">Excel Upload</button>
         </div>
       </div>
 
-      <div class="hero__right">
-        <div class="slider card card--soft">
-          <div class="slider__slide slider__slide--active">
-            <div class="slideTitle">1) Paste CVE(s)</div>
-            <div class="slideBody">Supports multiple CVEs separated by comma / space / newline.</div>
-          </div>
-          <div class="slider__slide">
-            <div class="slideTitle">2) Upload Excel</div>
-            <div class="slideBody">Auto-detects CVE text even if header names have typos.</div>
-          </div>
-          <div class="slider__slide">
-            <div class="slideTitle">3) Export New File</div>
-            <div class="slideBody">Adds EPSS Score/Percentile/Date + CVEs Found.</div>
-          </div>
-          <div class="slider__dots">
-            <span class="dot dot--active"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
+      <!-- Slider / Visual -->
+      <div class="card slider card--soft">
+        <div class="slider__slide slider__slide--active">
+          <div class="slideTitle">⚡ Quick Search</div>
+          <div class="slideBody">Paste one CVE or multiple CVEs. Get EPSS in a clean table format.</div>
+        </div>
+        <div class="slider__slide">
+          <div class="slideTitle">📄 Excel Upload</div>
+          <div class="slideBody">Upload your findings sheet and add EPSS columns row-wise.</div>
+        </div>
+        <div class="slider__slide">
+          <div class="slideTitle">🛡️ Error Handling</div>
+          <div class="slideBody">Handles invalid CVE formats, missing values, and API/network errors.</div>
+        </div>
+
+        <div class="slider__dots">
+          <div class="dot dot--active"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
         </div>
       </div>
     </section>
 
-    <!-- QUICK SEARCH -->
+    <!-- Quick Search Panel -->
     <section id="tab-search" class="card tabPanel">
       <h2>Quick Search</h2>
-      <p class="muted">Enter one or more CVEs. We will fetch EPSS score + percentile.</p>
 
-      <div class="grid2">
-        <div>
-          <label class="label">CVE(s)</label>
-          <textarea id="cveInput" class="input" rows="5"
-            placeholder="Example: CVE-2022-27225, CVE-2022-27223"></textarea>
-          <div class="row">
-            <button id="btnSearch" class="btn" type="button">Fetch EPSS</button>
-            <button id="btnClearSearch" class="btn btn--ghost" type="button">Clear</button>
+      <label class="label" for="cveInput">Enter CVE(s)</label>
+      <textarea id="cveInput" class="input" rows="4"
+        placeholder="Example:
+CVE-2022-27225
+CVE-2022-27223
+CVE-2022-27218"></textarea>
+
+      <div class="row">
+        <button id="btnSearch" class="btn" type="button">Fetch EPSS</button>
+        <button id="btnClearSearch" class="btn btn--ghost" type="button">Clear</button>
+      </div>
+
+      <div id="searchStatus" class="status"></div>
+
+      <!-- Results (TABLE ONLY) -->
+      <div class="resultBox" style="margin-top:14px;">
+        <div class="resultBox__header">
+          <div>
+            <div class="label" style="margin:0;">Results</div>
+            <div class="tiny">Select columns you want to display</div>
           </div>
-          <div id="searchStatus" class="status muted"></div>
+
+          <div class="row" style="margin:0;">
+            <label class="chip">
+              <input type="checkbox" id="colEpss" checked />
+              <span>EPSS</span>
+            </label>
+
+            <label class="chip">
+              <input type="checkbox" id="colPercentile" checked />
+              <span>Percentile</span>
+            </label>
+
+            <label class="chip">
+              <input type="checkbox" id="colDate" checked />
+              <span>Date</span>
+            </label>
+
+            <button id="btnCopyTable" class="btn btn--ghost btn--small" type="button">
+              Copy Table
+            </button>
+          </div>
         </div>
 
-        <div class="resultBox">
-  <div class="resultBox__header">
-    <div>
-      <div class="label">Results</div>
-      <div class="muted tiny">Select what columns you want to see</div>
-    </div>
-
-    <div class="row">
-      <label class="chip">
-        <input type="checkbox" id="colEpss" checked />
-        <span>EPSS</span>
-      </label>
-
-      <label class="chip">
-        <input type="checkbox" id="colPercentile" checked />
-        <span>Percentile</span>
-      </label>
-
-      <label class="chip">
-        <input type="checkbox" id="colDate" checked />
-        <span>Date</span>
-      </label>
-
-      <button id="btnCopyTable" class="btn btn--ghost btn--small" type="button">Copy Table</button>
-      <button id="btnCopyJson" class="btn btn--ghost btn--small" type="button">Copy JSON</button>
-    </div>
-  </div>
-
-  <div class="tableWrap tableWrap--results">
-    <table id="resultsTable" class="table table--results">
-      <thead></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <details class="jsonDetails">
-    <summary>Show raw JSON</summary>
-    <pre id="searchResult" class="pre">{}</pre>
-  </details>
-</div>
-
+        <div class="tableWrap tableWrap--results">
+          <table id="resultsTable" class="table table--results">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
-    <!-- EXCEL UPLOAD -->
+    <!-- Excel Upload Panel -->
     <section id="tab-excel" class="card tabPanel hidden">
       <h2>Excel Upload</h2>
-      <p class="muted">
-        Upload .xlsx. We will scan rows, extract CVEs from cells, fetch EPSS in batches,
-        and export a new .xlsx with EPSS columns.
-      </p>
 
       <div class="grid2">
         <div>
-          <label class="label">Upload Excel (.xlsx)</label>
+          <label class="label" for="fileInput">Upload Excel (.xlsx)</label>
           <input id="fileInput" class="input" type="file" accept=".xlsx,.xls" />
 
           <div class="row">
-            <label class="checkbox">
-              <input id="onlyFirstSheet" type="checkbox" checked />
-              Process only first sheet
-            </label>
-            <label class="checkbox">
-              <input id="includePercentile" type="checkbox" checked />
-              Include percentile/date columns
-            </label>
-          </div>
-
-          <div class="row">
-            <label class="label">If a row contains multiple CVEs, aggregate EPSS as:</label>
-            <select id="aggMode" class="input">
-              <option value="max" selected>MAX EPSS (recommended)</option>
-              <option value="avg">AVERAGE EPSS</option>
-              <option value="list">No aggregate (store list as text)</option>
-            </select>
-          </div>
-
-          <div class="row">
-            <button id="btnProcess" class="btn" type="button">Process & Export</button>
-            <button id="btnResetExcel" class="btn btn--ghost" type="button">Reset</button>
+            <button id="btnProcessExcel" class="btn" type="button">Process & Export</button>
+            <button id="btnClearExcel" class="btn btn--ghost" type="button">Reset</button>
           </div>
 
           <div class="progress">
             <div id="progressBar" class="progress__bar" style="width:0%"></div>
           </div>
-          <div id="excelStatus" class="status muted"></div>
+
+          <div id="excelStatus" class="status"></div>
+
+          <div class="tiny" style="margin-top:10px;">
+            Tip: Keep your CVEs in any column — the app will detect patterns like <b>CVE-2024-12345</b>.
+          </div>
         </div>
 
         <div>
-          <div class="card card--soft">
-            <h3>Preview (first 10 rows)</h3>
-            <div class="tableWrap">
-              <table id="previewTable" class="table">
-                <thead></thead>
-                <tbody></tbody>
-              </table>
-            </div>
+          <h3>EPSS Distribution</h3>
+          <div class="card card--soft" style="padding:12px;">
+            <canvas id="epssChart" height="160"></canvas>
           </div>
-
-          <div class="card card--soft chartCard">
-            <h3>EPSS Distribution</h3>
-            <canvas id="epssChart" height="140"></canvas>
-          </div>
+          <div class="tiny">Chart updates after processing your Excel file.</div>
         </div>
       </div>
     </section>
 
-    <footer class="footer muted">
-      Built as a static site for GitHub Pages. EPSS data from FIRST EPSS API. :contentReference[oaicite:5]{index=5}
-    </footer>
+    <div class="footer">
+      Built for CVE EPSS scoring • Uses FIRST EPSS API • Developed by <b>Arup Basak</b>
+    </div>
   </main>
 
+  <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
