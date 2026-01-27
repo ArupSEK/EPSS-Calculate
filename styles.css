@@ -341,3 +341,70 @@ textarea.input{resize:vertical}
 
 /* Footer */
 .footer{padding:18px 2px;font-size:12px;color:rgba(20,30,60,.65);font-weight:800}
+.topbar__actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* Animated badge */
+.devBadge{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 14px;
+  border-radius:999px;
+  border:2px solid rgba(255,255,255,.85);
+  background: linear-gradient(135deg,
+    rgba(255,47,214,.25),
+    rgba(34,211,255,.22),
+    rgba(45,255,179,.18),
+    rgba(255,240,74,.18)
+  );
+  box-shadow: 0 12px 30px rgba(0,0,0,.12);
+  position:relative;
+  overflow:hidden;
+}
+
+/* Moving shine */
+.devBadge::before{
+  content:"";
+  position:absolute;
+  top:-40px;
+  left:-60px;
+  width:120px;
+  height:140px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  transform: rotate(25deg);
+  animation: shine 2.6s linear infinite;
+}
+@keyframes shine{
+  0%{ transform: translateX(-120px) rotate(25deg); opacity:.0; }
+  15%{ opacity:.7; }
+  50%{ opacity:.9; }
+  100%{ transform: translateX(420px) rotate(25deg); opacity:0; }
+}
+
+/* Pulsing dot */
+.devBadge__dot{
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background: linear-gradient(135deg, #ff2fd6, #22d3ff, #2dffb3);
+  box-shadow: 0 0 0 0 rgba(255,47,214,.45);
+  animation: pulse 1.3s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%{ box-shadow: 0 0 0 0 rgba(255,47,214,.45); transform: scale(1); }
+  70%{ box-shadow: 0 0 0 14px rgba(255,47,214,0); transform: scale(1.05); }
+  100%{ box-shadow: 0 0 0 0 rgba(255,47,214,0); transform: scale(1); }
+}
+
+.devBadge__text{
+  font-weight:900;
+  color: rgba(8,16,32,.92);
+  font-size:13px;
+}
+.devBadge__text b{ font-weight:1000; }
+
