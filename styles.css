@@ -170,3 +170,84 @@ textarea.input{resize:vertical}
   max-width:320px;
 }
 .toast.hidden{display:none}
+/* ---------- More modern + colorful ---------- */
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  background:
+    radial-gradient(1200px 700px at 15% -10%, rgba(255, 91, 174, .26), transparent 55%),
+    radial-gradient(1000px 700px at 90% 0%, rgba(106,166,255,.26), transparent 55%),
+    radial-gradient(900px 600px at 60% 110%, rgba(124,240,199,.20), transparent 55%),
+    linear-gradient(180deg, rgba(255,255,255,.03), transparent 40%),
+    var(--bg);
+  color:var(--text);
+}
+
+.card{
+  background: rgba(18,26,51,.62);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 22px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.35);
+  padding: 18px;
+  margin: 16px 0;
+  backdrop-filter: blur(12px);
+}
+
+.btn{
+  border:none;cursor:pointer;
+  padding:12px 14px;border-radius:14px;
+  background: linear-gradient(135deg, #6aa6ff, #7cf0c7, #ff5bae);
+  color:#07101f;font-weight:800;
+  transition: transform .12s ease, box-shadow .12s ease;
+  box-shadow: 0 10px 30px rgba(106,166,255,.18);
+}
+.btn:active{ transform: translateY(1px) scale(.99); }
+
+.btn--ghost{
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:none;
+}
+
+.tableWrap--results{
+  max-height: 260px;
+  overflow:auto;
+  border-radius: 16px;
+}
+
+.table--results th{
+  background: rgba(255,255,255,.06);
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+
+.table--results td{
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.tiny{font-size:12px}
+.jsonDetails{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.10);
+}
+.jsonDetails summary{
+  cursor:pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chip{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  font-size:12px;
+  color: var(--text);
+  user-select:none;
+}
+.chip input{ accent-color: #7cf0c7; }
+
