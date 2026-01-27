@@ -1,121 +1,183 @@
 /* =========================
-   EPSS Lookup - FIXED toggles
+   EPSS Lookup - FINAL (no JSON)
    ========================= */
 
 const EPSS_BASE = "https://api.first.org/data/v1/epss";
 const MAX_BATCH_CVES = 100;
 const MAX_QUERY_CHARS = 1900;
 
-let chart = null;
-let lastSearchResult = {}; // { CVE: {epss, percentile, date} }
+let lastSearchRows = []; // array of {cve, epss, percentile, date}
+let sortState = { key: "cve", dir: "asc" };
 
-// ---------- Helpers ----------
+let chart = null;
+
 const $ = (id) => document.getElementById(id);
 
-function toast(msg, type = "info") {
+function toast(msg, type="info"){
   const el = $("toast");
-  if (!el) return;
+  if(!el) return;
   el.textContent = msg;
   el.classList.remove("hidden");
-  el.style.borderColor = type === "error" ? "rgba(255,80,80,.7)" : "rgba(255,255,255,.8)";
-  setTimeout(() => el.classList.add("hidden"), 2800);
+  el.style.borderColor = type==="error" ? "rgba(255,59,59,.8)" : "rgba(255,255,255,.9)";
+  setTimeout(()=> el.classList.add("hidden"), 2800);
 }
 
-function setStatus(el, msg) {
-  if (el) el.textContent = msg || "";
-}
-
-function setProgress(pct) {
+function setStatus(el, msg){ if(el) el.textContent = msg || ""; }
+function setProgress(pct){
   const bar = $("progressBar");
-  if (bar) bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  if(bar) bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
 }
 
-function extractCVEs(text) {
-  if (!text) return [];
-  const s = String(text);
-  const matches = s.match(/CVE-\d{4}-\d{4,7}/gi);
-  if (!matches) return [];
+function setButtonLoading(btn, loading){
+  if(!btn) return;
+  btn.classList.toggle("isLoading", !!loading);
+  btn.disabled = !!loading;
+}
+
+function extractCVEs(text){
+  if(!text) return [];
+  const matches = String(text).match(/CVE-\d{4}-\d{4,7}/gi);
+  if(!matches) return [];
   return [...new Set(matches.map(m => m.toUpperCase()))];
 }
 
-function buildBatches(cves) {
-  const unique = [...new Set(cves.map(x => x.toUpperCase()))];
+function buildBatches(cves){
+  const unique = [...new Set(cves.map(c => c.toUpperCase()))];
   const batches = [];
   let current = [];
 
   const wouldExceedChars = (arr, next) => ([...arr, next].join(",").length > MAX_QUERY_CHARS);
 
-  for (const cve of unique) {
-    if (current.length >= MAX_BATCH_CVES || wouldExceedChars(current, cve)) {
-      if (current.length) batches.push(current);
+  for(const cve of unique){
+    if(current.length >= MAX_BATCH_CVES || wouldExceedChars(current, cve)){
+      if(current.length) batches.push(current);
       current = [];
     }
     current.push(cve);
   }
-  if (current.length) batches.push(current);
+  if(current.length) batches.push(current);
   return batches;
 }
 
-async function fetchEpssMapForCves(cves, onProgress) {
+async function fetchEpssMapForCves(cves, onProgress){
   const batches = buildBatches(cves);
   const out = new Map();
 
-  for (let i = 0; i < batches.length; i++) {
+  for(let i=0; i<batches.length; i++){
     const batch = batches[i];
     const url = `${EPSS_BASE}?cve=${encodeURIComponent(batch.join(","))}`;
 
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`EPSS API error: HTTP ${res.status}`);
+    if(!res.ok) throw new Error(`EPSS API error: HTTP ${res.status}`);
 
     const json = await res.json();
     const data = json?.data || [];
-    for (const row of data) {
-      if (row?.cve) out.set(String(row.cve).toUpperCase(), row);
+    for(const row of data){
+      if(row?.cve) out.set(String(row.cve).toUpperCase(), row);
     }
-
-    if (onProgress) onProgress(i + 1, batches.length);
+    if(onProgress) onProgress(i+1, batches.length);
   }
-
   return out;
 }
 
-function formatMaybeNum(x) {
+function fmtNum(x){
   const n = Number(x);
-  if (!Number.isFinite(n)) return "";
+  if(!Number.isFinite(n)) return "";
   return n.toFixed(9).replace(/0+$/,"").replace(/\.$/,"");
 }
 
-/* ---------- TABLE RENDER (TOGGLES WORK HERE) ---------- */
-function renderResultsTable(resultObj) {
+function epssBadgeClass(epss){
+  const n = Number(epss);
+  if(!Number.isFinite(n)) return "badge--green";
+  if(n >= 0.7) return "badge--red";
+  if(n >= 0.3) return "badge--orange";
+  if(n >= 0.1) return "badge--yellow";
+  return "badge--green";
+}
+
+/* =========================
+   TABLE RENDER (with toggles + sorting)
+   ========================= */
+function getVisibleColumns(){
+  return {
+    epss: $("colEpss")?.checked ?? true,
+    pct: $("colPercentile")?.checked ?? true,
+    date: $("colDate")?.checked ?? true
+  };
+}
+
+function sortRows(rows){
+  const {key, dir} = sortState;
+  const mult = dir === "asc" ? 1 : -1;
+
+  const toNum = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : -Infinity;
+  };
+
+  const sorted = [...rows].sort((a,b)=>{
+    if(key === "cve"){
+      return a.cve.localeCompare(b.cve) * mult;
+    }
+    if(key === "epss"){
+      return (toNum(a.epss) - toNum(b.epss)) * mult;
+    }
+    if(key === "percentile"){
+      return (toNum(a.percentile) - toNum(b.percentile)) * mult;
+    }
+    if(key === "date"){
+      return String(a.date || "").localeCompare(String(b.date || "")) * mult;
+    }
+    return 0;
+  });
+
+  return sorted;
+}
+
+function setSort(key){
+  if(sortState.key === key){
+    sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+  } else {
+    sortState.key = key;
+    sortState.dir = "asc";
+  }
+  renderResultsTable();
+}
+
+function renderResultsTable(){
   const table = $("resultsTable");
-  if (!table) return;
+  if(!table) return;
 
   const thead = table.querySelector("thead");
   const tbody = table.querySelector("tbody");
-  if (!thead || !tbody) return;
+  if(!thead || !tbody) return;
 
-  const showEpss = $("colEpss")?.checked ?? true;
-  const showPct = $("colPercentile")?.checked ?? true;
-  const showDate = $("colDate")?.checked ?? true;
+  const cols = getVisibleColumns();
 
   thead.innerHTML = "";
   tbody.innerHTML = "";
 
-  const headers = ["CVE"];
-  if (showEpss) headers.push("EPSS");
-  if (showPct) headers.push("Percentile");
-  if (showDate) headers.push("Date");
+  const headers = [{k:"cve", t:"CVE"}];
+  if(cols.epss) headers.push({k:"epss", t:"EPSS"});
+  if(cols.pct) headers.push({k:"percentile", t:"Percentile"});
+  if(cols.date) headers.push({k:"date", t:"Date"});
 
   const trh = document.createElement("tr");
-  headers.forEach(h => {
+  headers.forEach(h=>{
     const th = document.createElement("th");
-    th.textContent = h;
+    th.textContent = h.t;
+    const hint = document.createElement("span");
+    hint.className = "sortHint";
+    hint.textContent = sortState.key === h.k ? (sortState.dir === "asc" ? "▲" : "▼") : "↕";
+    th.appendChild(hint);
+    th.addEventListener("click", ()=> setSort(h.k));
     trh.appendChild(th);
   });
   thead.appendChild(trh);
 
-  const entries = Object.entries(resultObj || {});
-  if (!entries.length) {
+  const rows = sortRows(lastSearchRows);
+
+  if(!rows.length){
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = headers.length;
@@ -126,26 +188,31 @@ function renderResultsTable(resultObj) {
     return;
   }
 
-  for (const [cve, row] of entries) {
+  for(const r of rows){
     const tr = document.createElement("tr");
 
-    const tdCve = document.createElement("td");
-    tdCve.textContent = cve;
-    tr.appendChild(tdCve);
+    const tdC = document.createElement("td");
+    tdC.textContent = r.cve;
+    tr.appendChild(tdC);
 
-    if (showEpss) {
+    if(cols.epss){
       const td = document.createElement("td");
-      td.textContent = row?.epss ?? "";
+      const badge = document.createElement("span");
+      badge.className = `badge ${epssBadgeClass(r.epss)}`;
+      badge.textContent = r.epss || "";
+      td.appendChild(badge);
       tr.appendChild(td);
     }
-    if (showPct) {
+
+    if(cols.pct){
       const td = document.createElement("td");
-      td.textContent = row?.percentile ?? "";
+      td.textContent = r.percentile || "";
       tr.appendChild(td);
     }
-    if (showDate) {
+
+    if(cols.date){
       const td = document.createElement("td");
-      td.textContent = row?.date ?? "";
+      td.textContent = r.date || "";
       tr.appendChild(td);
     }
 
@@ -153,33 +220,89 @@ function renderResultsTable(resultObj) {
   }
 }
 
-async function copyVisibleTableTSV() {
-  const showEpss = $("colEpss")?.checked ?? true;
-  const showPct = $("colPercentile")?.checked ?? true;
-  const showDate = $("colDate")?.checked ?? true;
-
+/* =========================
+   Copy / Download
+   ========================= */
+function rowsToTSV(rows){
+  const cols = getVisibleColumns();
   const headers = ["CVE"];
-  if (showEpss) headers.push("EPSS");
-  if (showPct) headers.push("Percentile");
-  if (showDate) headers.push("Date");
+  if(cols.epss) headers.push("EPSS");
+  if(cols.pct) headers.push("Percentile");
+  if(cols.date) headers.push("Date");
 
   const lines = [headers.join("\t")];
-
-  for (const [cve, row] of Object.entries(lastSearchResult || {})) {
-    const cols = [cve];
-    if (showEpss) cols.push(row?.epss ?? "");
-    if (showPct) cols.push(row?.percentile ?? "");
-    if (showDate) cols.push(row?.date ?? "");
-    lines.push(cols.join("\t"));
+  for(const r of sortRows(rows)){
+    const line = [r.cve];
+    if(cols.epss) line.push(r.epss || "");
+    if(cols.pct) line.push(r.percentile || "");
+    if(cols.date) line.push(r.date || "");
+    lines.push(line.join("\t"));
   }
-
-  await navigator.clipboard.writeText(lines.join("\n"));
+  return lines.join("\n");
 }
 
-/* ---------- Excel chart helpers (unchanged, safe) ---------- */
-function renderChart(epssValues) {
-  const ctx = $("epssChart");
-  if (!ctx || !window.Chart) return;
+function rowsToCSV(rows){
+  const cols = getVisibleColumns();
+  const headers = ["CVE"];
+  if(cols.epss) headers.push("EPSS");
+  if(cols.pct) headers.push("Percentile");
+  if(cols.date) headers.push("Date");
+
+  const esc = (s)=> `"${String(s ?? "").replaceAll('"','""')}"`;
+
+  const lines = [headers.map(esc).join(",")];
+  for(const r of sortRows(rows)){
+    const line = [r.cve];
+    if(cols.epss) line.push(r.epss || "");
+    if(cols.pct) line.push(r.percentile || "");
+    if(cols.date) line.push(r.date || "");
+    lines.push(line.map(esc).join(","));
+  }
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename, content, mime){
+  const blob = new Blob([content], {type: mime});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* =========================
+   Summary chips
+   ========================= */
+function updateSummary(rows){
+  const wrap = $("searchSummary");
+  if(!wrap) return;
+
+  if(!rows.length){
+    wrap.style.display = "none";
+    return;
+  }
+  wrap.style.display = "flex";
+
+  const total = rows.length;
+  const found = rows.filter(r => r.epss !== "").length;
+  const nums = rows.map(r => Number(r.epss)).filter(n => Number.isFinite(n));
+  const max = nums.length ? Math.max(...nums) : 0;
+  const avg = nums.length ? (nums.reduce((a,b)=>a+b,0)/nums.length) : 0;
+
+  $("sumFound").textContent = `Found: ${found}/${total}`;
+  $("sumMax").textContent = `Max EPSS: ${max.toFixed(3)}`;
+  $("sumAvg").textContent = `Avg EPSS: ${avg.toFixed(3)}`;
+}
+
+/* =========================
+   Chart (Excel)
+   ========================= */
+function renderChart(epssValues){
+  const canvas = $("epssChart");
+  if(!canvas || !window.Chart) return;
 
   const vals = epssValues.map(v => Number(v)).filter(v => Number.isFinite(v));
 
@@ -191,25 +314,37 @@ function renderChart(epssValues) {
     { label: "0.3–0.6", min: 0.3, max: 0.6 },
     { label: "0.6–1.0", min: 0.6, max: 1.0 },
   ];
-
   const counts = buckets.map(b => vals.filter(x => x >= b.min && x < b.max).length);
 
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
+  if(chart) chart.destroy();
+  chart = new Chart(canvas, {
     type: "bar",
     data: { labels: buckets.map(b => b.label), datasets: [{ label: "Count", data: counts }] },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+    options: { responsive: true, plugins: { legend: { display:false } } }
   });
 }
 
 /* =========================
-   DOM READY - bind everything
+   Excel processing
    ========================= */
-document.addEventListener("DOMContentLoaded", () => {
+function aoaFromSheet(sheet){
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" });
+}
+function sheetFromAOA(aoa){
+  return XLSX.utils.aoa_to_sheet(aoa);
+}
+
+function rowCVEs(row){
+  // Scan entire row cells
+  const allText = row.map(c => String(c ?? "")).join(" | ");
+  return extractCVEs(allText);
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
   // Tabs
-  document.querySelectorAll(".tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach(b => b.classList.remove("tab--active"));
+  document.querySelectorAll(".tab").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      document.querySelectorAll(".tab").forEach(b=> b.classList.remove("tab--active"));
       btn.classList.add("tab--active");
       const tab = btn.dataset.tab;
       $("tab-search").classList.toggle("hidden", tab !== "search");
@@ -219,81 +354,223 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Slider
   let slideIndex = 0;
-  setInterval(() => {
+  setInterval(()=>{
     const slides = document.querySelectorAll(".slider__slide");
     const dots = document.querySelectorAll(".dot");
-    slides.forEach(s => s.classList.remove("slider__slide--active"));
-    dots.forEach(d => d.classList.remove("dot--active"));
+    slides.forEach(s=> s.classList.remove("slider__slide--active"));
+    dots.forEach(d=> d.classList.remove("dot--active"));
     slideIndex = (slideIndex + 1) % slides.length;
     slides[slideIndex].classList.add("slider__slide--active");
     dots[slideIndex].classList.add("dot--active");
   }, 2600);
 
-  // ✅ TOGGLE FIX: bind checkbox change events
-  ["colEpss", "colPercentile", "colDate"].forEach(id => {
+  // Toggle listeners
+  ["colEpss","colPercentile","colDate"].forEach(id=>{
     const el = $(id);
-    if (el) el.addEventListener("change", () => renderResultsTable(lastSearchResult));
+    if(el) el.addEventListener("change", ()=> renderResultsTable());
   });
 
   // Copy table
-  const copyBtn = $("btnCopyTable");
-  if (copyBtn) {
-    copyBtn.addEventListener("click", async () => {
-      try {
-        await copyVisibleTableTSV();
-        toast("Copied table (paste into Excel)");
-      } catch {
-        toast("Clipboard blocked by browser", "error");
-      }
-    });
-  }
+  $("btnCopyTable").addEventListener("click", async ()=>{
+    try{
+      const tsv = rowsToTSV(lastSearchRows);
+      await navigator.clipboard.writeText(tsv);
+      toast("Copied table (paste into Excel)");
+    }catch{
+      toast("Clipboard blocked by browser", "error");
+    }
+  });
 
-  // Search
-  $("btnSearch").addEventListener("click", async () => {
+  // Download CSV
+  $("btnDownloadCsv").addEventListener("click", ()=>{
+    const csv = rowsToCSV(lastSearchRows);
+    downloadTextFile("epss_results.csv", csv, "text/csv;charset=utf-8");
+    toast("CSV downloaded");
+  });
+
+  // Quick Search
+  $("btnSearch").addEventListener("click", async ()=>{
+    const btn = $("btnSearch");
     const statusEl = $("searchStatus");
     const raw = $("cveInput").value;
     const cves = extractCVEs(raw);
 
-    if (!cves.length) return toast("No CVE found. Example: CVE-2022-27225", "error");
+    if(!cves.length){
+      toast("No CVE found. Example: CVE-2022-27225", "error");
+      return;
+    }
 
+    setButtonLoading(btn, true);
     setStatus(statusEl, "Fetching EPSS…");
-    lastSearchResult = {};
-    renderResultsTable(lastSearchResult);
+    lastSearchRows = [];
+    renderResultsTable();
+    updateSummary(lastSearchRows);
 
-    try {
-      const epssMap = await fetchEpssMapForCves(cves, (i, n) => {
+    try{
+      const map = await fetchEpssMapForCves(cves, (i,n)=>{
         setStatus(statusEl, `Fetching… batch ${i}/${n}`);
       });
 
-      const result = {};
-      for (const cve of cves) {
-        const row = epssMap.get(cve.toUpperCase());
-        result[cve] = row ? {
-          epss: formatMaybeNum(row.epss),
-          percentile: formatMaybeNum(row.percentile),
+      lastSearchRows = cves.map(cve=>{
+        const row = map.get(cve.toUpperCase());
+        return row ? {
+          cve,
+          epss: fmtNum(row.epss),
+          percentile: fmtNum(row.percentile),
           date: row.date || ""
-        } : { epss: "", percentile: "", date: "" };
-      }
+        } : { cve, epss:"", percentile:"", date:"" };
+      });
 
-      lastSearchResult = result;
-      renderResultsTable(lastSearchResult);
-      setStatus(statusEl, `Done. Found ${Object.values(result).filter(r => r.epss).length}/${cves.length}.`);
-      toast("EPSS fetched");
-    } catch (e) {
+      renderResultsTable();
+      updateSummary(lastSearchRows);
+
+      const found = lastSearchRows.filter(r=> r.epss !== "").length;
+      setStatus(statusEl, `Done. Found ${found}/${cves.length}.`);
+      toast("EPSS fetched ✅");
+    }catch(e){
       setStatus(statusEl, "");
       toast(e.message || String(e), "error");
+    }finally{
+      setButtonLoading(btn, false);
     }
   });
 
   // Clear search
-  $("btnClearSearch").addEventListener("click", () => {
+  $("btnClearSearch").addEventListener("click", ()=>{
     $("cveInput").value = "";
     setStatus($("searchStatus"), "");
-    lastSearchResult = {};
-    renderResultsTable(lastSearchResult);
+    lastSearchRows = [];
+    renderResultsTable();
+    updateSummary(lastSearchRows);
     toast("Cleared");
   });
 
+  // Excel reset
+  $("btnClearExcel").addEventListener("click", ()=>{
+    $("fileInput").value = "";
+    setProgress(0);
+    setStatus($("excelStatus"), "");
+    toast("Reset");
+  });
+
+  // Excel process
+  $("btnProcessExcel").addEventListener("click", async ()=>{
+    const btn = $("btnProcessExcel");
+    const fileEl = $("fileInput");
+    const statusEl = $("excelStatus");
+
+    const file = fileEl.files?.[0];
+    if(!file){
+      toast("Upload an Excel file first", "error");
+      return;
+    }
+
+    setButtonLoading(btn, true);
+    setProgress(0);
+    setStatus(statusEl, "Reading Excel…");
+
+    try{
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data, { type: "array" });
+
+      // Process ONLY first sheet (simple + reliable)
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+
+      const aoa = aoaFromSheet(ws);
+      if(aoa.length === 0) throw new Error("Excel sheet is empty.");
+
+      // Ensure header row exists
+      const header = aoa[0] || [];
+      const addCols = ["EPSS Score", "EPSS Percentile", "EPSS Date", "EPSS CVEs Found"];
+      addCols.forEach(c => header.push(c));
+      aoa[0] = header;
+
+      // Collect CVEs from rows
+      const rowCveLists = [];
+      const allCVEs = new Set();
+
+      for(let r=1; r<aoa.length; r++){
+        const row = aoa[r] || [];
+        const cves = rowCVEs(row);
+        rowCveLists[r] = cves;
+        cves.forEach(c => allCVEs.add(c));
+      }
+
+      const all = [...allCVEs];
+      if(all.length === 0){
+        setStatus(statusEl, "No CVEs found in the sheet.");
+        toast("No CVEs detected in Excel", "error");
+        setButtonLoading(btn, false);
+        return;
+      }
+
+      setStatus(statusEl, `Found ${all.length} unique CVEs. Fetching EPSS…`);
+      const map = await fetchEpssMapForCves(all, (i,n)=>{
+        setProgress(Math.round((i/n)*100));
+        setStatus(statusEl, `Fetching EPSS… batch ${i}/${n}`);
+      });
+
+      // Fill new columns per row
+      const epssValuesForChart = [];
+
+      for(let r=1; r<aoa.length; r++){
+        const row = aoa[r] || [];
+        const cves = rowCveLists[r] || [];
+
+        // pick MAX EPSS among row CVEs (best for “risk highlight”)
+        let best = { epss: -1, percentile: "", date: "", cve: "" };
+
+        for(const cve of cves){
+          const hit = map.get(cve.toUpperCase());
+          if(!hit) continue;
+          const e = Number(hit.epss);
+          if(Number.isFinite(e) && e > best.epss){
+            best = {
+              epss: e,
+              percentile: fmtNum(hit.percentile),
+              date: hit.date || "",
+              cve
+            };
+          }
+        }
+
+        const epssOut = best.epss >= 0 ? fmtNum(best.epss) : "";
+        const pctOut  = best.epss >= 0 ? best.percentile : "";
+        const dateOut = best.epss >= 0 ? best.date : "";
+
+        const foundList = cves.join(", ");
+
+        row.push(epssOut, pctOut, dateOut, foundList);
+        aoa[r] = row;
+
+        if(epssOut) epssValuesForChart.push(Number(epssOut));
+      }
+
+      renderChart(epssValuesForChart);
+      setProgress(100);
+      setStatus(statusEl, "Done ✅ Exporting new Excel…");
+
+      // Write new workbook
+      const outWb = XLSX.utils.book_new();
+      const outWs = sheetFromAOA(aoa);
+      XLSX.utils.book_append_sheet(outWb, outWs, sheetName);
+
+      const outName = file.name.replace(/\.xlsx$/i,"").replace(/\.xls$/i,"") + "_epss.xlsx";
+      XLSX.writeFile(outWb, outName);
+
+      setStatus(statusEl, `Exported: ${outName}`);
+      toast("Excel exported ✅");
+    }catch(e){
+      setStatus(statusEl, "");
+      setProgress(0);
+      toast(e.message || String(e), "error");
+    }finally{
+      setButtonLoading(btn, false);
+    }
+  });
+
   // Initial render
-  renderResultsTable({});
+  renderResultsTable();
+  updateSummary(lastSearchRows);
 });
