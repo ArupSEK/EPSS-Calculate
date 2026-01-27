@@ -49,7 +49,7 @@ Users can search single/multiple CVEs or upload an Excel file. The app detects C
 
 After enabling GitHub Pages:
 
-- `https://arupsek.github.io/<repo-name>/`
+- `https://arupsek.github.io/EPSS-Calculate/`
 
 ---
 
