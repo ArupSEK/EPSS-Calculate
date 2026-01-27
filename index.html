@@ -96,12 +96,46 @@
         </div>
 
         <div class="resultBox">
-          <div class="resultBox__header">
-            <div class="label">Results</div>
-            <button id="btnCopyJson" class="btn btn--ghost btn--small" type="button">Copy JSON</button>
-          </div>
-          <pre id="searchResult" class="pre">{}</pre>
-        </div>
+  <div class="resultBox__header">
+    <div>
+      <div class="label">Results</div>
+      <div class="muted tiny">Select what columns you want to see</div>
+    </div>
+
+    <div class="row">
+      <label class="chip">
+        <input type="checkbox" id="colEpss" checked />
+        <span>EPSS</span>
+      </label>
+
+      <label class="chip">
+        <input type="checkbox" id="colPercentile" checked />
+        <span>Percentile</span>
+      </label>
+
+      <label class="chip">
+        <input type="checkbox" id="colDate" checked />
+        <span>Date</span>
+      </label>
+
+      <button id="btnCopyTable" class="btn btn--ghost btn--small" type="button">Copy Table</button>
+      <button id="btnCopyJson" class="btn btn--ghost btn--small" type="button">Copy JSON</button>
+    </div>
+  </div>
+
+  <div class="tableWrap tableWrap--results">
+    <table id="resultsTable" class="table table--results">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <details class="jsonDetails">
+    <summary>Show raw JSON</summary>
+    <pre id="searchResult" class="pre">{}</pre>
+  </details>
+</div>
+
       </div>
     </section>
 
