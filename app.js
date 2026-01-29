@@ -349,6 +349,46 @@ function isSupportedSpreadsheet(filename){
   return ["xlsx", "xls", "xlsm", "xlsb", "csv"].includes(ext);
 }
 
+let xlsxLoadPromise = null;
+
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureXlsxLoaded(){
+  if(window.XLSX) return true;
+  if(!xlsxLoadPromise){
+    const sources = [
+      "./xlsx.full.min.js",
+      "./vendor/xlsx.full.min.js",
+      "https://cdn.sheetjs.com/xlsx-0/frontend/xlsx.full.min.js",
+      "https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js",
+      "https://cdn.jsdelivr.net/npm/xlsx@0.20.1/dist/xlsx.full.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.1/xlsx.full.min.js",
+      "https://unpkg.com/xlsx@0.20.1/dist/xlsx.full.min.js"
+    ];
+    xlsxLoadPromise = (async ()=>{
+      for(const src of sources){
+        try{
+          await loadScript(src);
+          if(window.XLSX) return true;
+        }catch{
+          // try next source
+        }
+      }
+      return false;
+    })();
+  }
+  return xlsxLoadPromise;
+}
+
 document.addEventListener("DOMContentLoaded", ()=>{
   // Tabs
   document.querySelectorAll(".tab").forEach(btn=>{
@@ -483,6 +523,13 @@ document.addEventListener("DOMContentLoaded", ()=>{
     setStatus(statusEl, "Reading Excel…");
 
     try{
+      const hasXlsx = await ensureXlsxLoaded();
+      if(!hasXlsx){
+        setStatus(statusEl, "Excel engine failed to load.");
+        toast("Excel engine unavailable. Allow CDN scripts or place xlsx.full.min.js next to index.html.", "error");
+        return;
+      }
+
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: "array" });
 
