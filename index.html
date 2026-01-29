@@ -155,6 +155,9 @@ CVE-2022-27223"></textarea>
           <label class="label" for="fileInput">Upload Excel (.xlsx/.xls/.xlsm/.xlsb) or CSV</label>
           <input id="fileInput" class="input" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
 
+          <label class="label" for="xlsxEngineInput" style="margin-top:12px;">Optional: Load local XLSX engine (.js)</label>
+          <input id="xlsxEngineInput" class="input" type="file" accept=".js" />
+
           <div class="row">
             <button id="btnProcessExcel" class="btn" type="button">
               <span class="btnText">Process & Export</span>
@@ -173,7 +176,7 @@ CVE-2022-27223"></textarea>
             ✅ Accepts .xlsx, .xls, .xlsm, .xlsb, or .csv files.<br/>
             ✅ Detects CVEs anywhere in each row (even if column names have typos).<br/>
             ✅ Adds new columns at the end: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.<br/>
-            ⚠️ If your network blocks CDNs, download <b>xlsx.full.min.js</b> and place it next to <b>index.html</b>.
+            ⚠️ If your network blocks CDNs, download <b>xlsx.full.min.js</b> and either place it next to <b>index.html</b> or load it with the local engine picker above.
           </div>
         </div>
 

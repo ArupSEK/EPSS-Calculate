@@ -350,6 +350,7 @@ function isSupportedSpreadsheet(filename){
 }
 
 let xlsxLoadPromise = null;
+let xlsxBlobUrl = null;
 
 function loadScript(src){
   return new Promise((resolve, reject)=>{
@@ -358,6 +359,27 @@ function loadScript(src){
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+function loadScriptFromFile(file){
+  return new Promise((resolve, reject)=>{
+    if(!file) {
+      reject(new Error("No XLSX file provided."));
+      return;
+    }
+    if(xlsxBlobUrl){
+      URL.revokeObjectURL(xlsxBlobUrl);
+      xlsxBlobUrl = null;
+    }
+    const blobUrl = URL.createObjectURL(file);
+    xlsxBlobUrl = blobUrl;
+    const script = document.createElement("script");
+    script.src = blobUrl;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load local XLSX script."));
     document.head.appendChild(script);
   });
 }
@@ -497,9 +519,33 @@ document.addEventListener("DOMContentLoaded", ()=>{
   // Excel reset
   $("btnClearExcel").addEventListener("click", ()=>{
     $("fileInput").value = "";
+    $("xlsxEngineInput").value = "";
     setProgress(0);
     setStatus($("excelStatus"), "");
     toast("Reset");
+  });
+
+  // Optional local XLSX loader
+  $("xlsxEngineInput").addEventListener("change", async (event)=>{
+    const statusEl = $("excelStatus");
+    const file = event.target.files?.[0];
+    if(!file){
+      return;
+    }
+    setStatus(statusEl, "Loading local XLSX engine…");
+    try{
+      await loadScriptFromFile(file);
+      if(window.XLSX){
+        setStatus(statusEl, "Loaded local XLSX engine ✅");
+        toast("Local XLSX engine loaded");
+      }else{
+        setStatus(statusEl, "Local XLSX file did not expose XLSX.");
+        toast("Invalid XLSX script file", "error");
+      }
+    }catch(e){
+      setStatus(statusEl, "");
+      toast(e.message || String(e), "error");
+    }
   });
 
   // Excel process
@@ -526,7 +572,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
       const hasXlsx = await ensureXlsxLoaded();
       if(!hasXlsx){
         setStatus(statusEl, "Excel engine failed to load.");
-        toast("Excel engine unavailable. Allow CDN scripts or place xlsx.full.min.js next to index.html.", "error");
+        toast("Excel engine unavailable. Allow CDN scripts or load a local xlsx.full.min.js file.", "error");
         return;
       }
 
