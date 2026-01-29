@@ -340,6 +340,15 @@ function rowCVEs(row){
   return extractCVEs(allText);
 }
 
+function getFileExtension(filename){
+  return String(filename || "").toLowerCase().split(".").pop();
+}
+
+function isSupportedSpreadsheet(filename){
+  const ext = getFileExtension(filename);
+  return ["xlsx", "xls", "xlsm", "xlsb", "csv"].includes(ext);
+}
+
 document.addEventListener("DOMContentLoaded", ()=>{
   // Tabs
   document.querySelectorAll(".tab").forEach(btn=>{
@@ -462,6 +471,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
     const file = fileEl.files?.[0];
     if(!file){
       toast("Upload an Excel file first", "error");
+      return;
+    }
+    if(!isSupportedSpreadsheet(file.name)){
+      toast("Unsupported file. Use .xlsx, .xls, .xlsm, .xlsb, or .csv", "error");
       return;
     }
 

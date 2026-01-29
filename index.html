@@ -152,8 +152,8 @@ CVE-2022-27223"></textarea>
 
       <div class="grid2">
         <div>
-          <label class="label" for="fileInput">Upload Excel (.xlsx/.xls)</label>
-          <input id="fileInput" class="input" type="file" accept=".xlsx,.xls" />
+          <label class="label" for="fileInput">Upload Excel (.xlsx/.xls/.xlsm/.xlsb) or CSV</label>
+          <input id="fileInput" class="input" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
 
           <div class="row">
             <button id="btnProcessExcel" class="btn" type="button">
@@ -170,6 +170,7 @@ CVE-2022-27223"></textarea>
           <div id="excelStatus" class="status"></div>
 
           <div class="tiny" style="margin-top:10px;">
+            ✅ Accepts .xlsx, .xls, .xlsm, .xlsb, or .csv files.<br/>
             ✅ Detects CVEs anywhere in each row (even if column names have typos).<br/>
             ✅ Adds new columns at the end: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.
           </div>
