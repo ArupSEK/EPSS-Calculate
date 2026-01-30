@@ -179,6 +179,28 @@ textarea.input{resize:vertical}
 
 .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
 .status{margin-top:10px;font-size:12px;color:rgba(20,30,60,.7);font-weight:900}
+.previewControls{
+  display:grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap:14px;
+  margin-top:10px;
+}
+@media (max-width:720px){
+  .previewControls{grid-template-columns:1fr}
+}
+.choiceGroup{display:flex;gap:10px;flex-wrap:wrap}
+.choiceChip{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.85);
+  background: linear-gradient(135deg, rgba(255,47,214,.14), rgba(34,211,255,.12), rgba(45,255,179,.12));
+  font-size:12px;
+  font-weight:1000;
+}
+.choiceChip input{ accent-color: var(--purple); transform: scale(1.05); }
 
 /* Buttons (Candy) */
 .btn{
@@ -278,6 +300,7 @@ textarea.input{resize:vertical}
   background: rgba(255,255,255,.38);
 }
 .tableWrap--results{max-height: 320px;}
+.tableWrap--preview{max-height: 260px;}
 
 .table{
   width:100%;
@@ -301,6 +324,11 @@ textarea.input{resize:vertical}
   user-select:none;
 }
 .table th .sortHint{ opacity:.6; font-weight:900; margin-left:6px; }
+.table--preview th{cursor:default}
+.table--preview td.isSelected,
+.table--preview th.isSelected{
+  background: linear-gradient(90deg, rgba(138,91,255,.22), rgba(34,211,255,.14));
+}
 .table tbody tr:hover td{
   background: linear-gradient(90deg,
     rgba(255,47,214,.14),

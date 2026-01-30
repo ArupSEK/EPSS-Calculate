@@ -10,6 +10,10 @@ let lastSearchRows = []; // array of {cve, epss, percentile, date}
 let sortState = { key: "cve", dir: "asc" };
 
 let chart = null;
+let uploadedWorkbook = null;
+let uploadedSheetName = "";
+let uploadedAoa = null;
+let uploadedFileName = "";
 
 const $ = (id) => document.getElementById(id);
 
@@ -334,10 +338,9 @@ function sheetFromAOA(aoa){
   return XLSX.utils.aoa_to_sheet(aoa);
 }
 
-function rowCVEs(row){
-  // Scan entire row cells
-  const allText = row.map(c => String(c ?? "")).join(" | ");
-  return extractCVEs(allText);
+function rowCVEsFromColumn(row, columnIndex){
+  const cell = row?.[columnIndex];
+  return extractCVEs(cell);
 }
 
 function getFileExtension(filename){
@@ -383,6 +386,97 @@ async function ensureXlsxLoaded(){
     })();
   }
   return xlsxLoadPromise;
+}
+
+function getSelectedColumnIndex(){
+  const select = $("excelColumnSelect");
+  if(!select) return 0;
+  const val = Number(select.value);
+  return Number.isFinite(val) ? val : 0;
+}
+
+function getMultiEpssMode(){
+  const selected = document.querySelector("input[name='multiEpssMode']:checked");
+  return selected?.value || "comma";
+}
+
+function detectDefaultColumn(header){
+  const idx = header.findIndex(h => String(h).toLowerCase().includes("cve"));
+  return idx >= 0 ? idx : 0;
+}
+
+function buildColumnOptions(header){
+  const select = $("excelColumnSelect");
+  if(!select) return;
+  select.innerHTML = "";
+
+  header.forEach((label, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    const name = String(label || "").trim();
+    option.textContent = name ? `${name} (Column ${index + 1})` : `Column ${index + 1}`;
+    select.appendChild(option);
+  });
+}
+
+function renderExcelPreview(aoa, selectedColumnIndex){
+  const table = $("excelPreviewTable");
+  const status = $("excelPreviewStatus");
+  if(!table) return;
+  const thead = table.querySelector("thead");
+  const tbody = table.querySelector("tbody");
+  if(!thead || !tbody) return;
+
+  thead.innerHTML = "";
+  tbody.innerHTML = "";
+
+  if(!aoa || !aoa.length){
+    if(status) status.textContent = "No preview available.";
+    return;
+  }
+
+  const header = aoa[0] || [];
+  const maxRows = Math.min(aoa.length, 8);
+
+  const headerRow = document.createElement("tr");
+  header.forEach((cell, idx) => {
+    const th = document.createElement("th");
+    th.textContent = cell || `Column ${idx + 1}`;
+    if(idx === selectedColumnIndex) th.classList.add("isSelected");
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+
+  for(let r = 1; r < maxRows; r++){
+    const row = aoa[r] || [];
+    const tr = document.createElement("tr");
+    header.forEach((_, idx) => {
+      const td = document.createElement("td");
+      td.textContent = row[idx] ?? "";
+      if(idx === selectedColumnIndex) td.classList.add("isSelected");
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+
+  if(status){
+    status.textContent = `Previewing ${maxRows - 1} row(s) from "${uploadedSheetName}".`;
+  }
+}
+
+async function loadWorkbookFromFile(file){
+  const hasXlsx = await ensureXlsxLoaded();
+  if(!hasXlsx) throw new Error("Excel engine failed to load.");
+
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: "array" });
+
+  const sheetName = wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
+  const aoa = aoaFromSheet(ws);
+  if(aoa.length === 0) throw new Error("Excel sheet is empty.");
+
+  return { wb, sheetName, aoa };
 }
 
 document.addEventListener("DOMContentLoaded", ()=>{
@@ -495,7 +589,58 @@ document.addEventListener("DOMContentLoaded", ()=>{
     $("fileInput").value = "";
     setProgress(0);
     setStatus($("excelStatus"), "");
+    uploadedWorkbook = null;
+    uploadedSheetName = "";
+    uploadedAoa = null;
+    uploadedFileName = "";
+    const previewStatus = $("excelPreviewStatus");
+    if(previewStatus) previewStatus.textContent = "Upload a file to preview the sheet and choose a column.";
+    const previewTable = $("excelPreviewTable");
+    if(previewTable){
+      previewTable.querySelector("thead").innerHTML = "";
+      previewTable.querySelector("tbody").innerHTML = "";
+    }
     toast("Reset");
+  });
+
+  // Excel file preview
+  $("fileInput").addEventListener("change", async (event)=>{
+    const file = event.target.files?.[0];
+    const statusEl = $("excelStatus");
+    if(!file){
+      setStatus(statusEl, "");
+      return;
+    }
+    if(!isSupportedSpreadsheet(file.name)){
+      toast("Unsupported file. Use .xlsx, .xls, .xlsm, .xlsb, or .csv", "error");
+      return;
+    }
+
+    try{
+      setStatus(statusEl, "Loading preview…");
+      const { wb, sheetName, aoa } = await loadWorkbookFromFile(file);
+      uploadedWorkbook = wb;
+      uploadedSheetName = sheetName;
+      uploadedAoa = aoa;
+      uploadedFileName = file.name;
+
+      const header = aoa[0] || [];
+      buildColumnOptions(header);
+      const defaultColumn = detectDefaultColumn(header);
+      const select = $("excelColumnSelect");
+      if(select) select.value = String(defaultColumn);
+      renderExcelPreview(aoa, defaultColumn);
+      setStatus(statusEl, "Preview ready. Choose a CVE column and process.");
+    }catch(e){
+      setStatus(statusEl, "");
+      toast(e.message || String(e), "error");
+    }
+  });
+
+  $("excelColumnSelect").addEventListener("change", ()=>{
+    if(uploadedAoa){
+      renderExcelPreview(uploadedAoa, getSelectedColumnIndex());
+    }
   });
 
   // Excel process
@@ -519,22 +664,18 @@ document.addEventListener("DOMContentLoaded", ()=>{
     setStatus(statusEl, "Reading Excel…");
 
     try{
-      const hasXlsx = await ensureXlsxLoaded();
-      if(!hasXlsx){
-        setStatus(statusEl, "Excel engine failed to load.");
-        toast("Excel engine unavailable. Check network access or allow CDN scripts.", "error");
-        return;
+      if(!uploadedAoa || uploadedFileName !== file.name){
+        const { wb, sheetName, aoa } = await loadWorkbookFromFile(file);
+        uploadedWorkbook = wb;
+        uploadedSheetName = sheetName;
+        uploadedAoa = aoa;
+        uploadedFileName = file.name;
       }
 
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data, { type: "array" });
-
-      // Process ONLY first sheet (simple + reliable)
-      const sheetName = wb.SheetNames[0];
-      const ws = wb.Sheets[sheetName];
-
-      const aoa = aoaFromSheet(ws);
-      if(aoa.length === 0) throw new Error("Excel sheet is empty.");
+      const aoa = [...uploadedAoa.map(row => [...row])];
+      const sheetName = uploadedSheetName;
+      const selectedColumnIndex = getSelectedColumnIndex();
+      const multiMode = getMultiEpssMode();
 
       // Ensure header row exists
       const header = aoa[0] || [];
@@ -548,7 +689,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
       for(let r=1; r<aoa.length; r++){
         const row = aoa[r] || [];
-        const cves = rowCVEs(row);
+        const cves = rowCVEsFromColumn(row, selectedColumnIndex);
         rowCveLists[r] = cves;
         cves.forEach(c => allCVEs.add(c));
       }
@@ -574,33 +715,70 @@ document.addEventListener("DOMContentLoaded", ()=>{
         const row = aoa[r] || [];
         const cves = rowCveLists[r] || [];
 
-        // pick MAX EPSS among row CVEs (best for “risk highlight”)
-        let best = { epss: -1, percentile: "", date: "", cve: "" };
+        let epssOut = "";
+        let pctOut = "";
+        let dateOut = "";
 
-        for(const cve of cves){
-          const hit = map.get(cve.toUpperCase());
-          if(!hit) continue;
-          const e = Number(hit.epss);
-          if(Number.isFinite(e) && e > best.epss){
-            best = {
-              epss: e,
-              percentile: fmtNum(hit.percentile),
-              date: hit.date || "",
-              cve
-            };
+        if(multiMode === "comma"){
+          const epssList = [];
+          const pctList = [];
+          const dateList = [];
+          let hasHit = false;
+
+          for(const cve of cves){
+            const hit = map.get(cve.toUpperCase());
+            if(!hit){
+              epssList.push("");
+              pctList.push("");
+              dateList.push("");
+              continue;
+            }
+            hasHit = true;
+            epssList.push(fmtNum(hit.epss));
+            pctList.push(fmtNum(hit.percentile));
+            dateList.push(hit.date || "");
           }
-        }
 
-        const epssOut = best.epss >= 0 ? fmtNum(best.epss) : "";
-        const pctOut  = best.epss >= 0 ? best.percentile : "";
-        const dateOut = best.epss >= 0 ? best.date : "";
+          epssOut = hasHit ? epssList.join(", ") : "";
+          pctOut = hasHit ? pctList.join(", ") : "";
+          dateOut = hasHit ? dateList.join(", ") : "";
+        } else {
+          // pick MAX EPSS among row CVEs
+          let best = { epss: -1, percentile: "", date: "" };
+
+          for(const cve of cves){
+            const hit = map.get(cve.toUpperCase());
+            if(!hit) continue;
+            const e = Number(hit.epss);
+            if(Number.isFinite(e) && e > best.epss){
+              best = {
+                epss: e,
+                percentile: fmtNum(hit.percentile),
+                date: hit.date || ""
+              };
+            }
+          }
+
+          epssOut = best.epss >= 0 ? fmtNum(best.epss) : "";
+          pctOut  = best.epss >= 0 ? best.percentile : "";
+          dateOut = best.epss >= 0 ? best.date : "";
+        }
 
         const foundList = cves.join(", ");
 
         row.push(epssOut, pctOut, dateOut, foundList);
         aoa[r] = row;
 
-        if(epssOut) epssValuesForChart.push(Number(epssOut));
+        if(epssOut){
+          if(multiMode === "max"){
+            epssValuesForChart.push(Number(epssOut));
+          } else {
+            epssOut.split(",").forEach(value => {
+              const num = Number(value.trim());
+              if(Number.isFinite(num)) epssValuesForChart.push(num);
+            });
+          }
+        }
       }
 
       renderChart(epssValuesForChart);
