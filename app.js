@@ -15,6 +15,14 @@ let uploadedSheetName = "";
 let uploadedAoa = null;
 let uploadedFileName = "";
 let uploadedIsCsv = false;
+let lastGeneratedAoa = null;
+let originalUploadedAoa = null;
+let previewReorderHandler = null;
+let generatedReorderHandler = null;
+let lastGeneratedSheetName = "";
+let lastBaseAoa = null;
+let lastComputedExtras = null;
+let lastEpssMap = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -39,11 +47,20 @@ function setButtonLoading(btn, loading){
   btn.disabled = !!loading;
 }
 
+function normalizeCve(raw){
+  if(!raw) return "";
+  const s = String(raw).trim().toUpperCase();
+  const m = s.match(/CVE[\s_\-]*([0-9]{4})[\s_\-]*([0-9]{4,7})/);
+  if(!m) return "";
+  return `CVE-${m[1]}-${m[2]}`;
+}
+
 function extractCVEs(text){
   if(!text) return [];
-  const matches = String(text).match(/CVE-\d{4}-\d{4,7}/gi);
-  if(!matches) return [];
-  return [...new Set(matches.map(m => m.toUpperCase()))];
+  const rawMatches = String(text).match(/CVE[\s_\-]*\d{4}[\s_\-]*\d{4,7}/gi);
+  if(!rawMatches) return [];
+  const normalized = rawMatches.map(normalizeCve).filter(Boolean);
+  return [...new Set(normalized)];
 }
 
 function buildBatches(cves){
@@ -305,11 +322,23 @@ function updateSummary(rows){
 /* =========================
    Chart (Excel)
    ========================= */
-function renderChart(epssValues){
+function renderChart(epssValues, topList){
   const canvas = $("epssChart");
   if(!canvas || !window.Chart) return;
 
   const vals = epssValues.map(v => Number(v)).filter(v => Number.isFinite(v));
+  const stats = {
+    count: vals.length,
+    min: vals.length ? Math.min(...vals) : 0,
+    max: vals.length ? Math.max(...vals) : 0,
+    avg: vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length) : 0,
+    median: 0
+  };
+  if(vals.length){
+    const sorted = [...vals].sort((a,b)=>a-b);
+    const mid = Math.floor(sorted.length / 2);
+    stats.median = sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+  }
 
   const buckets = [
     { label: "0–0.01", min: 0, max: 0.01 },
@@ -322,11 +351,41 @@ function renderChart(epssValues){
   const counts = buckets.map(b => vals.filter(x => x >= b.min && x < b.max).length);
 
   if(chart) chart.destroy();
+  const ctx = canvas.getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height || 160);
+  gradient.addColorStop(0, "rgba(138,91,255,.85)");
+  gradient.addColorStop(1, "rgba(45,255,179,.55)");
+
   chart = new Chart(canvas, {
     type: "bar",
-    data: { labels: buckets.map(b => b.label), datasets: [{ label: "Count", data: counts }] },
-    options: { responsive: true, plugins: { legend: { display:false } } }
+    data: { labels: buckets.map(b => b.label), datasets: [{ label: "Count", data: counts, backgroundColor: gradient, borderRadius: 6 }] },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display:false },
+        tooltip: { enabled: true }
+      },
+      scales: {
+        x: { grid: { display:false } },
+        y: { grid: { color: "rgba(0,0,0,.08)" }, ticks: { precision: 0 } }
+      }
+    }
   });
+
+  $("chartCount").textContent = String(stats.count);
+  $("chartMin").textContent = stats.count ? stats.min.toFixed(3) : "0";
+  $("chartMax").textContent = stats.count ? stats.max.toFixed(3) : "0";
+  $("chartAvg").textContent = stats.count ? stats.avg.toFixed(3) : "0";
+  $("chartMedian").textContent = stats.count ? stats.median.toFixed(3) : "0";
+
+  const topWrap = $("chartTopList");
+  if(topWrap){
+    if(topList && topList.length){
+      topWrap.textContent = topList.map(t => `${t.cve} (${fmtNum(t.epss)})`).join(" • ");
+    } else {
+      topWrap.textContent = "—";
+    }
+  }
 }
 
 /* =========================
@@ -467,6 +526,111 @@ function aoaToCsv(aoa){
   return aoa.map(row => row.map(esc).join(",")).join("\n");
 }
 
+function formatTimestampForFilename(date){
+  const pad = (n)=> String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  const ss = pad(date.getSeconds());
+  return `${y}${m}${d}_${hh}${mm}${ss}`;
+}
+
+function buildGeneratedAoa(baseAoa, extras, exportCols){
+  if(!baseAoa || !baseAoa.length) return [];
+  const out = baseAoa.map(row => [...row]);
+  const header = out[0] || [];
+  if(exportCols.epss) header.push("EPSS Score");
+  if(exportCols.pct) header.push("EPSS Percentile");
+  if(exportCols.date) header.push("EPSS Date");
+  if(exportCols.found) header.push("EPSS CVEs Found");
+  out[0] = header;
+
+  for(let r = 1; r < out.length; r++){
+    const row = out[r] || [];
+    const extra = extras?.[r] || { epss:"", pct:"", date:"", found:"" };
+    if(exportCols.epss) row.push(extra.epss);
+    if(exportCols.pct) row.push(extra.pct);
+    if(exportCols.date) row.push(extra.date);
+    if(exportCols.found) row.push(extra.found);
+    out[r] = row;
+  }
+  return out;
+}
+
+function computeExtrasFromMap(baseAoa, selectedColumnIndex, epssMap, multiMode){
+  const extras = [];
+  const epssValuesForChart = [];
+
+  for(let r=1; r<baseAoa.length; r++){
+    const row = baseAoa[r] || [];
+    const cves = rowCVEsFromColumn(row, selectedColumnIndex);
+
+    let epssOut = "";
+    let pctOut = "";
+    let dateOut = "";
+
+    if(multiMode === "comma"){
+      const epssList = [];
+      const pctList = [];
+      const dateList = [];
+      let hasHit = false;
+
+      for(const cve of cves){
+        const hit = epssMap?.get(cve.toUpperCase());
+        if(!hit){
+          epssList.push("");
+          pctList.push("");
+          dateList.push("");
+          continue;
+        }
+        hasHit = true;
+        epssList.push(fmtNum(hit.epss));
+        pctList.push(fmtNum(hit.percentile));
+        dateList.push(hit.date || "");
+      }
+
+      epssOut = hasHit ? epssList.join(", ") : "";
+      pctOut = hasHit ? pctList.join(", ") : "";
+      dateOut = hasHit ? dateList.join(", ") : "";
+    } else {
+      let best = { epss: -1, percentile: "", date: "" };
+      for(const cve of cves){
+        const hit = epssMap?.get(cve.toUpperCase());
+        if(!hit) continue;
+        const e = Number(hit.epss);
+        if(Number.isFinite(e) && e > best.epss){
+          best = {
+            epss: e,
+            percentile: fmtNum(hit.percentile),
+            date: hit.date || ""
+          };
+        }
+      }
+      epssOut = best.epss >= 0 ? fmtNum(best.epss) : "";
+      pctOut  = best.epss >= 0 ? best.percentile : "";
+      dateOut = best.epss >= 0 ? best.date : "";
+    }
+
+    const foundList = cves.join(", ");
+    extras[r] = { epss: epssOut, pct: pctOut, date: dateOut, found: foundList };
+
+    if(epssOut){
+      if(multiMode === "max"){
+        epssValuesForChart.push(Number(epssOut));
+      } else {
+        epssOut.split(",").forEach(value => {
+          const num = Number(value.trim());
+          if(Number.isFinite(num)) epssValuesForChart.push(num);
+        });
+      }
+    }
+  }
+
+  return { extras, epssValuesForChart };
+}
+
 function getSelectedColumnIndex(){
   const select = $("excelColumnSelect");
   if(!select) return 0;
@@ -507,9 +671,63 @@ function buildColumnOptions(header){
   });
 }
 
-function renderExcelPreview(aoa, selectedColumnIndex){
-  const table = $("excelPreviewTable");
-  const status = $("excelPreviewStatus");
+function reorderAoaColumns(aoa, fromIdx, toIdx){
+  if(!aoa || fromIdx === toIdx) return aoa;
+  return aoa.map(row => {
+    const next = [...row];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    return next;
+  });
+}
+
+function bindScrollControl(wrap, slider){
+  if(!wrap || !slider) return;
+  if(slider.dataset.bound === "1") return;
+  slider.dataset.bound = "1";
+
+  slider.addEventListener("input", ()=>{
+    wrap.scrollLeft = Number(slider.value) || 0;
+  });
+
+  wrap.addEventListener("scroll", ()=>{
+    slider.value = String(wrap.scrollLeft || 0);
+  });
+}
+
+function syncScrollControl(wrap, slider){
+  if(!wrap || !slider) return;
+  const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  slider.max = String(max);
+  slider.value = String(Math.min(max, wrap.scrollLeft || 0));
+  slider.disabled = max === 0;
+}
+
+const PREVIEW_MAX_ROWS = 12;
+const GENERATED_MAX_ROWS = 300;
+const GENERATED_MAX_COLS = 300;
+
+function normalizeAoaToRange(aoa, ws){
+  if(!ws || !ws["!ref"]) return aoa;
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  const rows = range.e.r + 1;
+  const cols = range.e.c + 1;
+  const out = [];
+
+  for(let r = 0; r < rows; r++){
+    const src = aoa[r] || [];
+    const next = new Array(cols);
+    for(let c = 0; c < cols; c++){
+      next[c] = src[c] ?? "";
+    }
+    out.push(next);
+  }
+  return out;
+}
+
+function renderPreviewTable(tableId, statusId, aoa, selectedColumnIndex, enableDrag, onReorder){
+  const table = $(tableId);
+  const status = statusId ? $(statusId) : null;
   if(!table) return;
   const thead = table.querySelector("thead");
   const tbody = table.querySelector("tbody");
@@ -524,32 +742,63 @@ function renderExcelPreview(aoa, selectedColumnIndex){
   }
 
   const header = aoa[0] || [];
-  const maxRows = Math.min(aoa.length, 8);
+  let maxCols = Math.max(...aoa.map(r => (r ? r.length : 0)), header.length);
+  if(tableId === "excelGeneratedTable"){
+    maxCols = Math.min(maxCols, GENERATED_MAX_COLS);
+  }
+  const rowLimit = tableId === "excelGeneratedTable" ? GENERATED_MAX_ROWS : PREVIEW_MAX_ROWS;
+  const maxRows = Math.min(aoa.length, rowLimit + 1);
 
   const headerRow = document.createElement("tr");
-  header.forEach((cell, idx) => {
+  for(let idx = 0; idx < maxCols; idx++){
+    const cell = header[idx];
     const th = document.createElement("th");
     th.textContent = cell || `Column ${idx + 1}`;
-    if(idx === selectedColumnIndex) th.classList.add("isSelected");
+    if(idx === selectedColumnIndex && tableId === "excelPreviewTable") th.classList.add("isSelected");
+    if(enableDrag && onReorder){
+      th.draggable = true;
+      th.dataset.colIndex = String(idx);
+      th.addEventListener("dragstart", (e)=>{
+        e.dataTransfer.setData("text/plain", String(idx));
+      });
+      th.addEventListener("dragover", (e)=> e.preventDefault());
+      th.addEventListener("drop", (e)=>{
+        e.preventDefault();
+        const from = Number(e.dataTransfer.getData("text/plain"));
+        const to = Number(th.dataset.colIndex);
+        if(!Number.isFinite(from) || !Number.isFinite(to) || from === to) return;
+
+        onReorder(from, to);
+      });
+    }
     headerRow.appendChild(th);
-  });
+  }
   thead.appendChild(headerRow);
 
   for(let r = 1; r < maxRows; r++){
     const row = aoa[r] || [];
     const tr = document.createElement("tr");
-    header.forEach((_, idx) => {
+    for(let idx = 0; idx < maxCols; idx++){
       const td = document.createElement("td");
       td.textContent = row[idx] ?? "";
-      if(idx === selectedColumnIndex) td.classList.add("isSelected");
+      if(idx === selectedColumnIndex && tableId === "excelPreviewTable") td.classList.add("isSelected");
       tr.appendChild(td);
-    });
+    }
     tbody.appendChild(tr);
   }
 
   if(status){
-    status.textContent = `Previewing ${maxRows - 1} row(s) from "${uploadedSheetName}".`;
+    if(tableId === "excelGeneratedTable"){
+      status.textContent = `Previewing ${maxRows - 1} generated row(s), ${maxCols} columns (max ${GENERATED_MAX_ROWS} rows / ${GENERATED_MAX_COLS} cols).`;
+    } else {
+      status.textContent = `Previewing ${maxRows - 1} row(s), ${maxCols} columns from "${uploadedSheetName}".`;
+    }
   }
+
+  const wrap = table.closest(".tableWrap--preview");
+  const slider = tableId === "excelPreviewTable" ? $("previewScroll") : $("generatedScroll");
+  bindScrollControl(wrap, slider);
+  syncScrollControl(wrap, slider);
 }
 
 async function loadWorkbookFromFile(file){
@@ -571,7 +820,8 @@ async function loadWorkbookFromFile(file){
 
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
-  const aoa = aoaFromSheet(ws);
+  let aoa = aoaFromSheet(ws);
+  aoa = normalizeAoaToRange(aoa, ws);
   if(aoa.length === 0) throw new Error("Excel sheet is empty.");
 
   return { wb, sheetName, aoa, isCsv: false };
@@ -606,6 +856,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
     const el = $(id);
     if(el) el.addEventListener("change", ()=> renderResultsTable());
   });
+
 
   // Copy table
   $("btnCopyTable").addEventListener("click", async ()=>{
@@ -692,15 +943,32 @@ document.addEventListener("DOMContentLoaded", ()=>{
     uploadedAoa = null;
     uploadedFileName = "";
     uploadedIsCsv = false;
+    lastGeneratedAoa = null;
+    originalUploadedAoa = null;
+    previewReorderHandler = null;
+    generatedReorderHandler = null;
+    lastGeneratedSheetName = "";
+    lastBaseAoa = null;
+    lastComputedExtras = null;
+    lastEpssMap = null;
     const previewStatus = $("excelPreviewStatus");
     if(previewStatus) previewStatus.textContent = "Upload a file to preview the sheet and choose a column.";
-    const previewTable = $("excelPreviewTable");
-    if(previewTable){
-      previewTable.querySelector("thead").innerHTML = "";
-      previewTable.querySelector("tbody").innerHTML = "";
-    }
-    toast("Reset");
-  });
+      const previewTable = $("excelPreviewTable");
+      if(previewTable){
+        previewTable.querySelector("thead").innerHTML = "";
+        previewTable.querySelector("tbody").innerHTML = "";
+      }
+      const generatedStatus = $("excelGeneratedStatus");
+      if(generatedStatus) generatedStatus.textContent = "Processed file preview will appear here.";
+      const generatedTable = $("excelGeneratedTable");
+      if(generatedTable){
+        generatedTable.querySelector("thead").innerHTML = "";
+        generatedTable.querySelector("tbody").innerHTML = "";
+      }
+      const downloadBtn = $("btnDownloadGenerated");
+      if(downloadBtn) downloadBtn.disabled = true;
+      toast("Reset");
+    });
 
   // Excel file preview
   $("fileInput").addEventListener("change", async (event)=>{
@@ -723,13 +991,28 @@ document.addEventListener("DOMContentLoaded", ()=>{
       uploadedAoa = aoa;
       uploadedFileName = file.name;
       uploadedIsCsv = isCsv;
+      originalUploadedAoa = aoa.map(row => [...row]);
 
       const header = aoa[0] || [];
       buildColumnOptions(header);
       const defaultColumn = detectDefaultColumn(header);
       const select = $("excelColumnSelect");
       if(select) select.value = String(defaultColumn);
-      renderExcelPreview(aoa, defaultColumn);
+      previewReorderHandler = (from, to)=>{
+        uploadedAoa = reorderAoaColumns(uploadedAoa, from, to);
+        const select = $("excelColumnSelect");
+        let selected = Number(select?.value);
+        if(Number.isFinite(selected)){
+          if(selected === from) selected = to;
+          else if(from < selected && to >= selected) selected -= 1;
+          else if(from > selected && to <= selected) selected += 1;
+          if(select) select.value = String(selected);
+        }
+        buildColumnOptions(uploadedAoa[0] || []);
+        if(select && Number.isFinite(selected)) select.value = String(selected);
+        renderPreviewTable("excelPreviewTable", "excelPreviewStatus", uploadedAoa, selected, true, previewReorderHandler);
+      };
+      renderPreviewTable("excelPreviewTable", "excelPreviewStatus", aoa, defaultColumn, false, null);
       setStatus(statusEl, "Preview ready. Choose a CVE column and process.");
     }catch(e){
       setStatus(statusEl, "");
@@ -739,8 +1022,23 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
   $("excelColumnSelect").addEventListener("change", ()=>{
     if(uploadedAoa){
-      renderExcelPreview(uploadedAoa, getSelectedColumnIndex());
+      renderPreviewTable("excelPreviewTable", "excelPreviewStatus", uploadedAoa, getSelectedColumnIndex(), false, null);
     }
+  });
+
+  $("btnResetColumnOrder").addEventListener("click", ()=>{
+    if(!originalUploadedAoa){
+      toast("No uploaded sheet to reset", "error");
+      return;
+    }
+    uploadedAoa = originalUploadedAoa.map(row => [...row]);
+    const header = uploadedAoa[0] || [];
+    buildColumnOptions(header);
+    const defaultColumn = detectDefaultColumn(header);
+    const select = $("excelColumnSelect");
+    if(select) select.value = String(defaultColumn);
+    renderPreviewTable("excelPreviewTable", "excelPreviewStatus", uploadedAoa, defaultColumn, false, null);
+    toast("Column order reset");
   });
 
   // Excel process
@@ -773,7 +1071,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
         uploadedIsCsv = isCsv;
       }
 
-      const aoa = [...uploadedAoa.map(row => [...row])];
+      const baseAoa = [...uploadedAoa.map(row => [...row])];
       const sheetName = uploadedSheetName;
       const selectedColumnIndex = getSelectedColumnIndex();
       const multiMode = getMultiEpssMode();
@@ -786,22 +1084,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
         return;
       }
 
-      // Ensure header row exists
-      const header = aoa[0] || [];
-      const addCols = [];
-      if(exportCols.epss) addCols.push("EPSS Score");
-      if(exportCols.pct) addCols.push("EPSS Percentile");
-      if(exportCols.date) addCols.push("EPSS Date");
-      if(exportCols.found) addCols.push("EPSS CVEs Found");
-      addCols.forEach(c => header.push(c));
-      aoa[0] = header;
-
       // Collect CVEs from rows
       const rowCveLists = [];
       const allCVEs = new Set();
 
-      for(let r=1; r<aoa.length; r++){
-        const row = aoa[r] || [];
+      for(let r=1; r<baseAoa.length; r++){
+        const row = baseAoa[r] || [];
         const cves = rowCVEsFromColumn(row, selectedColumnIndex);
         rowCveLists[r] = cves;
         cves.forEach(c => allCVEs.add(c));
@@ -822,105 +1110,32 @@ document.addEventListener("DOMContentLoaded", ()=>{
       });
 
       // Fill new columns per row
-      const epssValuesForChart = [];
+      const { extras, epssValuesForChart } = computeExtrasFromMap(baseAoa, selectedColumnIndex, map, multiMode);
 
-      for(let r=1; r<aoa.length; r++){
-        const row = aoa[r] || [];
-        const cves = rowCveLists[r] || [];
-
-        let epssOut = "";
-        let pctOut = "";
-        let dateOut = "";
-
-        if(multiMode === "comma"){
-          const epssList = [];
-          const pctList = [];
-          const dateList = [];
-          let hasHit = false;
-
-          for(const cve of cves){
-            const hit = map.get(cve.toUpperCase());
-            if(!hit){
-              epssList.push("");
-              pctList.push("");
-              dateList.push("");
-              continue;
-            }
-            hasHit = true;
-            epssList.push(fmtNum(hit.epss));
-            pctList.push(fmtNum(hit.percentile));
-            dateList.push(hit.date || "");
-          }
-
-          epssOut = hasHit ? epssList.join(", ") : "";
-          pctOut = hasHit ? pctList.join(", ") : "";
-          dateOut = hasHit ? dateList.join(", ") : "";
-        } else {
-          // pick MAX EPSS among row CVEs
-          let best = { epss: -1, percentile: "", date: "" };
-
-          for(const cve of cves){
-            const hit = map.get(cve.toUpperCase());
-            if(!hit) continue;
-            const e = Number(hit.epss);
-            if(Number.isFinite(e) && e > best.epss){
-              best = {
-                epss: e,
-                percentile: fmtNum(hit.percentile),
-                date: hit.date || ""
-              };
-            }
-          }
-
-          epssOut = best.epss >= 0 ? fmtNum(best.epss) : "";
-          pctOut  = best.epss >= 0 ? best.percentile : "";
-          dateOut = best.epss >= 0 ? best.date : "";
-        }
-
-        const foundList = cves.join(", ");
-
-        if(exportCols.epss) row.push(epssOut);
-        if(exportCols.pct) row.push(pctOut);
-        if(exportCols.date) row.push(dateOut);
-        if(exportCols.found) row.push(foundList);
-        aoa[r] = row;
-
-        if(epssOut){
-          if(multiMode === "max"){
-            epssValuesForChart.push(Number(epssOut));
-          } else {
-            epssOut.split(",").forEach(value => {
-              const num = Number(value.trim());
-              if(Number.isFinite(num)) epssValuesForChart.push(num);
-            });
-          }
-        }
-      }
-
-      renderChart(epssValuesForChart);
+      const topList = [...map.values()]
+        .filter(r => Number.isFinite(Number(r?.epss)))
+        .sort((a,b)=> Number(b.epss) - Number(a.epss))
+        .slice(0, 5)
+        .map(r => ({ cve: String(r.cve || "").toUpperCase(), epss: r.epss }));
+      renderChart(epssValuesForChart, topList);
       setProgress(100);
       setStatus(statusEl, "Done ✅ Exporting file…");
 
-      if(uploadedIsCsv){
-        const outName = file.name.replace(/\.csv$/i,"") + "_epss.csv";
-        const csvOut = aoaToCsv(aoa);
-        downloadTextFile(outName, csvOut, "text/csv;charset=utf-8");
-        setStatus(statusEl, `Exported: ${outName}`);
-        toast("CSV exported ✅");
-      } else {
-        if(!window.XLSX){
-          throw new Error("Excel export requires SheetJS. Upload CSV or host ./vendor/xlsx.full.min.js.");
-        }
-        const outWb = XLSX.utils.book_new();
-        const outWs = sheetFromAOA(aoa);
-        XLSX.utils.book_append_sheet(outWb, outWs, sheetName);
-
-        const outName = file.name.replace(/\.xlsx$/i,"").replace(/\.xls$/i,"") + "_epss.xlsx";
-        XLSX.writeFile(outWb, outName);
-
-        setStatus(statusEl, `Exported: ${outName}`);
-        toast("Excel exported ✅");
-      }
+      lastBaseAoa = baseAoa;
+      lastComputedExtras = extras;
+      lastEpssMap = map;
+      lastGeneratedAoa = buildGeneratedAoa(baseAoa, extras, exportCols);
+      lastGeneratedSheetName = sheetName || "Sheet1";
+      generatedReorderHandler = (from, to)=>{
+        lastGeneratedAoa = reorderAoaColumns(lastGeneratedAoa, from, to);
+        renderPreviewTable("excelGeneratedTable", "excelGeneratedStatus", lastGeneratedAoa, -1, true, generatedReorderHandler);
+        toast("Generated preview reordered");
+      };
+      renderPreviewTable("excelGeneratedTable", "excelGeneratedStatus", lastGeneratedAoa, -1, true, generatedReorderHandler);
+      const downloadBtn = $("btnDownloadGenerated");
+      if(downloadBtn) downloadBtn.disabled = false;
+      setStatus(statusEl, "Done ✅ Preview ready. Click download to save Excel.");
+      toast("Generated preview ready ✅");
     }catch(e){
       setStatus(statusEl, "");
       setProgress(0);
@@ -928,6 +1143,60 @@ document.addEventListener("DOMContentLoaded", ()=>{
     }finally{
       setButtonLoading(btn, false);
     }
+  });
+
+  $("btnDownloadGenerated").addEventListener("click", ()=>{
+    if(!lastGeneratedAoa || !lastGeneratedAoa.length){
+      toast("No generated file to download", "error");
+      return;
+    }
+    if(!window.XLSX){
+      toast("Excel export requires SheetJS. Host ./vendor/xlsx.full.min.js.", "error");
+      return;
+    }
+    const outWb = XLSX.utils.book_new();
+    const outWs = sheetFromAOA(lastGeneratedAoa);
+    const sheetName = lastGeneratedSheetName || "Sheet1";
+    XLSX.utils.book_append_sheet(outWb, outWs, sheetName);
+
+    const base = (uploadedFileName || "epss_output").replace(/\.(xlsx|xls|xlsm|xlsb|csv)$/i, "");
+    const stamp = formatTimestampForFilename(new Date());
+    const outName = `${base}_final_EPSS_${stamp}.xlsx`;
+    XLSX.writeFile(outWb, outName);
+    toast(`Downloaded ${outName}`);
+  });
+
+  ["excelColEpss","excelColPercentile","excelColDate","excelColFound"].forEach(id=>{
+    const el = $(id);
+    if(!el) return;
+    el.addEventListener("change", ()=>{
+      if(!lastBaseAoa || !lastComputedExtras) return;
+      const exportCols = getExcelExportColumns();
+      lastGeneratedAoa = buildGeneratedAoa(lastBaseAoa, lastComputedExtras, exportCols);
+      renderPreviewTable("excelGeneratedTable", "excelGeneratedStatus", lastGeneratedAoa, -1, true, generatedReorderHandler);
+      toast("Generated preview updated");
+    });
+  });
+
+  document.querySelectorAll("input[name='multiEpssMode']").forEach(el=>{
+    el.addEventListener("change", ()=>{
+      if(!lastBaseAoa || !lastEpssMap) return;
+      const exportCols = getExcelExportColumns();
+      const selectedColumnIndex = getSelectedColumnIndex();
+      const mode = getMultiEpssMode();
+      const { extras, epssValuesForChart } = computeExtrasFromMap(lastBaseAoa, selectedColumnIndex, lastEpssMap, mode);
+      lastComputedExtras = extras;
+      lastGeneratedAoa = buildGeneratedAoa(lastBaseAoa, lastComputedExtras, exportCols);
+      renderPreviewTable("excelGeneratedTable", "excelGeneratedStatus", lastGeneratedAoa, -1, true, generatedReorderHandler);
+
+      const topList = [...lastEpssMap.values()]
+        .filter(r => Number.isFinite(Number(r?.epss)))
+        .sort((a,b)=> Number(b.epss) - Number(a.epss))
+        .slice(0, 5)
+        .map(r => ({ cve: String(r.cve || "").toUpperCase(), epss: r.epss }));
+      renderChart(epssValuesForChart, topList);
+      toast("Mode updated");
+    });
   });
 
   // Initial render

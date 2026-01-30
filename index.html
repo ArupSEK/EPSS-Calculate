@@ -144,15 +144,33 @@ CVE-2022-27223"></textarea>
     </section>
 
     <!-- Excel Upload -->
-    <section id="tab-excel" class="card tabPanel hidden">
+    <section id="tab-excel" class="card tabPanel tabPanel--sticky hidden">
       <h2>Excel Upload</h2>
 
-      <div class="grid2">
+      <div class="chartCard chartCard--small">
+        <h3>EPSS Distribution</h3>
+        <div class="card card--soft" style="padding:10px;">
+          <canvas id="epssChart" height="120"></canvas>
+        </div>
+        <div class="chartStats">
+          <div class="statChip"><span>Count</span><b id="chartCount">0</b></div>
+          <div class="statChip"><span>Min</span><b id="chartMin">0</b></div>
+          <div class="statChip"><span>Max</span><b id="chartMax">0</b></div>
+          <div class="statChip"><span>Avg</span><b id="chartAvg">0</b></div>
+          <div class="statChip"><span>Median</span><b id="chartMedian">0</b></div>
+        </div>
+        <div class="chartTop">
+          <div class="tiny">Top 5 CVEs (by EPSS)</div>
+          <div id="chartTopList" class="topList">—</div>
+        </div>
+      </div>
+
+      <div class="grid2 grid2--stack">
         <div>
           <label class="label" for="fileInput">Upload Excel (.xlsx/.xls/.xlsm/.xlsb) or CSV</label>
           <input id="fileInput" class="input" type="file" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
 
-          <div class="row">
+          <div class="row excelActions">
             <button id="btnProcessExcel" class="btn" type="button">
               <span class="btnText">Process & Export</span>
               <span class="btnSpinner" aria-hidden="true"></span>
@@ -187,49 +205,65 @@ CVE-2022-27223"></textarea>
             </div>
           </div>
 
-          <div class="label">Columns to add</div>
-          <div class="choiceGroup">
-            <label class="choiceChip">
-              <input type="checkbox" id="excelColEpss" checked />
-              <span>EPSS Score</span>
-            </label>
-            <label class="choiceChip">
-              <input type="checkbox" id="excelColPercentile" checked />
-              <span>EPSS Percentile</span>
-            </label>
-            <label class="choiceChip">
-              <input type="checkbox" id="excelColDate" checked />
-              <span>EPSS Date</span>
-            </label>
-            <label class="choiceChip">
-              <input type="checkbox" id="excelColFound" checked />
-              <span>EPSS CVEs Found</span>
-            </label>
+          <div class="subCard">
+            <div class="label">Preview</div>
+            <div class="tableWrap tableWrap--preview">
+              <table id="excelPreviewTable" class="table table--preview">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="excelPreviewStatus" class="tiny">Upload a file to preview.</div>
+            <div class="scrollHint">Scroll ↔</div>
+            <div class="scrollControl">
+              <input id="previewScroll" class="scrollRange" type="range" min="0" max="0" value="0" />
+            </div>
+            <button id="btnResetColumnOrder" class="btn btn--ghost btn--small" type="button" style="margin-top:8px;">Reset column order</button>
           </div>
-
-          <div class="label">Preview</div>
-          <div class="tableWrap tableWrap--preview">
-            <table id="excelPreviewTable" class="table table--preview">
-              <thead></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div id="excelPreviewStatus" class="tiny">Upload a file to preview the sheet and choose a column.</div>
 
           <div class="tiny" style="margin-top:10px;">
-            ✅ Accepts .xlsx, .xls, .xlsm, .xlsb, or .csv files.<br/>
-            ✅ Choose the column that contains CVEs before processing.<br/>
-            ✅ Select which new columns to add: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.
+            Choose your CVE column and output fields, then process.
+          </div>
+
+          <div class="subCard">
+            <div class="label">Columns to add</div>
+            <div class="choiceGroup">
+              <label class="choiceChip">
+                <input type="checkbox" id="excelColEpss" checked />
+                <span>EPSS Score</span>
+              </label>
+              <label class="choiceChip">
+                <input type="checkbox" id="excelColPercentile" checked />
+                <span>EPSS Percentile</span>
+              </label>
+              <label class="choiceChip">
+                <input type="checkbox" id="excelColDate" checked />
+                <span>EPSS Date</span>
+              </label>
+              <label class="choiceChip">
+                <input type="checkbox" id="excelColFound" checked />
+                <span>EPSS CVEs Found</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="subCard">
+            <div class="label">Generated Preview</div>
+            <div class="tableWrap tableWrap--preview">
+              <table id="excelGeneratedTable" class="table table--preview">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="excelGeneratedStatus" class="tiny">Generated preview appears here.</div>
+            <div class="scrollHint">Scroll ↔</div>
+            <div class="scrollControl">
+              <input id="generatedScroll" class="scrollRange" type="range" min="0" max="0" value="0" />
+            </div>
+            <button id="btnDownloadGenerated" class="btn btn--ghost btn--small" type="button" style="margin-top:8px;" disabled>Download generated Excel</button>
           </div>
         </div>
 
-        <div>
-          <h3>EPSS Distribution</h3>
-          <div class="card card--soft" style="padding:12px;">
-            <canvas id="epssChart" height="160"></canvas>
-          </div>
-          <div class="tiny">Chart updates after Excel processing.</div>
-        </div>
       </div>
     </section>
 

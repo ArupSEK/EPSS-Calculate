@@ -85,6 +85,7 @@ body::before{
   position:relative;
   overflow:hidden;
 }
+.tabPanel--sticky{overflow:visible;}
 .card--soft{
   background: rgba(255,255,255,.50);
   box-shadow:none;
@@ -155,6 +156,53 @@ h3{margin:0 0 10px;font-size:18px}
 .tabPanel.hidden{display:none}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid2--stack{grid-template-columns:1fr;}
+.grid2 > div{min-width:0;}
+
+/* Small chart box */
+.chartCard{
+  max-width:360px;
+  margin: 6px 0 12px auto;
+  text-align:right;
+}
+.chartCard--small h3{font-size:15px;margin-bottom:6px;}
+
+.chartStats{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:6px;
+  text-align:left;
+}
+.statChip{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:6px 8px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.75);
+  background: rgba(255,255,255,.55);
+  font-size:11px;
+  font-weight:900;
+}
+.statChip span{color:rgba(8,16,32,.65)}
+.statChip b{font-size:12px}
+
+.chartTop{
+  margin-top:8px;
+  text-align:left;
+}
+.topList{
+  margin-top:4px;
+  padding:6px 8px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.75);
+  background: rgba(255,255,255,.55);
+  font-size:11px;
+  line-height:1.4;
+  max-height:88px;
+  overflow:auto;
+}
 @media (max-width:920px){.grid2{grid-template-columns:1fr}}
 
 /* Inputs */
@@ -178,6 +226,15 @@ h3{margin:0 0 10px;font-size:18px}
 textarea.input{resize:vertical}
 
 .row{display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.excelActions{
+  position:static;
+  padding:0;
+  border-radius:0;
+  background: transparent;
+  border:none;
+  box-shadow:none;
+  backdrop-filter:none;
+}
 .status{margin-top:10px;font-size:12px;color:rgba(20,30,60,.7);font-weight:900}
 .previewControls{
   display:grid;
@@ -201,6 +258,15 @@ textarea.input{resize:vertical}
   font-weight:1000;
 }
 .choiceChip input{ accent-color: var(--purple); transform: scale(1.05); }
+
+/* Sub sections for clarity */
+.subCard{
+  margin-top:12px;
+  padding:12px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.75);
+  background: rgba(255,255,255,.48);
+}
 
 /* Buttons (Candy) */
 .btn{
@@ -300,7 +366,16 @@ textarea.input{resize:vertical}
   background: rgba(255,255,255,.38);
 }
 .tableWrap--results{max-height: 320px;}
-.tableWrap--preview{max-height: 260px;}
+.tableWrap--preview{max-height: min(60vh, 520px);}
+.tableWrap--preview{
+  overflow-x:scroll;
+  overflow-y:auto;
+  scrollbar-gutter: stable both-edges;
+  width:100%;
+  max-width:100%;
+  display:block;
+}
+.tableWrap--preview .table{width:max-content; min-width:100%; table-layout:auto;}
 
 .table{
   width:100%;
@@ -324,7 +399,33 @@ textarea.input{resize:vertical}
   user-select:none;
 }
 .table th .sortHint{ opacity:.6; font-weight:900; margin-left:6px; }
-.table--preview th{cursor:default}
+.table--preview th{cursor:default; white-space:nowrap; max-width:220px;}
+.table--preview th,.table--preview td{min-width:140px;}
+.table--preview td{max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+/* Scroll hint */
+.scrollHint{
+  margin-top:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px dashed rgba(255,255,255,.75);
+  background: rgba(255,255,255,.45);
+  color: rgba(8,16,32,.7);
+  font-size:11px;
+  font-weight:900;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+}
+.scrollControl{
+  margin-top:6px;
+  width:100%;
+}
+.scrollRange{
+  width:100%;
+  accent-color: var(--purple);
+}
+.table--preview th[draggable="true"]{cursor:grab}
 .table--preview td.isSelected,
 .table--preview th.isSelected{
   background: linear-gradient(90deg, rgba(138,91,255,.22), rgba(34,211,255,.14));
