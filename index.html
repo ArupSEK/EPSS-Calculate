@@ -187,6 +187,26 @@ CVE-2022-27223"></textarea>
             </div>
           </div>
 
+          <div class="label">Columns to add</div>
+          <div class="choiceGroup">
+            <label class="choiceChip">
+              <input type="checkbox" id="excelColEpss" checked />
+              <span>EPSS Score</span>
+            </label>
+            <label class="choiceChip">
+              <input type="checkbox" id="excelColPercentile" checked />
+              <span>EPSS Percentile</span>
+            </label>
+            <label class="choiceChip">
+              <input type="checkbox" id="excelColDate" checked />
+              <span>EPSS Date</span>
+            </label>
+            <label class="choiceChip">
+              <input type="checkbox" id="excelColFound" checked />
+              <span>EPSS CVEs Found</span>
+            </label>
+          </div>
+
           <div class="label">Preview</div>
           <div class="tableWrap tableWrap--preview">
             <table id="excelPreviewTable" class="table table--preview">
@@ -199,7 +219,7 @@ CVE-2022-27223"></textarea>
           <div class="tiny" style="margin-top:10px;">
             ✅ Accepts .xlsx, .xls, .xlsm, .xlsb, or .csv files.<br/>
             ✅ Choose the column that contains CVEs before processing.<br/>
-            ✅ Adds new columns at the end: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.
+            ✅ Select which new columns to add: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.
           </div>
         </div>
 
