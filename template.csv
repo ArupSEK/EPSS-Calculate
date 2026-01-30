@@ -1,0 +1,4 @@
+Asset ID,CVE,Owner,Notes
+SRV-001,CVE-2023-1234,IT,Single CVE example
+SRV-002,"CVE-2022-27225, CVE-2022-27223",Security,Multiple CVEs example
+SRV-003,,Ops,Leave blank if no CVE

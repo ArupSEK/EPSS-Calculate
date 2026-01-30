@@ -160,6 +160,7 @@ CVE-2022-27223"></textarea>
               <span class="btnText">Process & Export</span>
               <span class="btnSpinner" aria-hidden="true"></span>
             </button>
+            <button id="btnDownloadTemplate" class="btn btn--ghost" type="button">Download Template</button>
             <button id="btnClearExcel" class="btn btn--ghost" type="button">Reset</button>
           </div>
 
@@ -169,9 +170,39 @@ CVE-2022-27223"></textarea>
 
           <div id="excelStatus" class="status"></div>
 
+          <div class="previewControls">
+            <div>
+              <label class="label" for="excelColumnSelect">CVE Column</label>
+              <select id="excelColumnSelect" class="input"></select>
+            </div>
+
+            <div>
+              <div class="label">Multiple CVEs</div>
+              <div class="choiceGroup">
+                <label class="choiceChip">
+                  <input type="radio" name="multiEpssMode" value="comma" checked />
+                  <span>Keep EPSS list (comma-separated)</span>
+                </label>
+                <label class="choiceChip">
+                  <input type="radio" name="multiEpssMode" value="max" />
+                  <span>Keep highest EPSS only</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="label">Preview</div>
+          <div class="tableWrap tableWrap--preview">
+            <table id="excelPreviewTable" class="table table--preview">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="excelPreviewStatus" class="tiny">Upload a file to preview the sheet and choose a column.</div>
+
           <div class="tiny" style="margin-top:10px;">
             ✅ Accepts .xlsx, .xls, .xlsm, .xlsb, or .csv files.<br/>
-            ✅ Detects CVEs anywhere in each row (even if column names have typos).<br/>
+            ✅ Choose the column that contains CVEs before processing.<br/>
             ✅ Adds new columns at the end: <b>EPSS Score</b>, <b>EPSS Percentile</b>, <b>EPSS Date</b>, <b>EPSS CVEs Found</b>.
           </div>
         </div>
