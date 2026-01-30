@@ -193,20 +193,6 @@ CVE-2022-27223"></textarea>
               <label class="label" for="excelColumnSelect">CVE Column</label>
               <select id="excelColumnSelect" class="input"></select>
             </div>
-
-            <div>
-              <div class="label">Multiple CVEs</div>
-              <div class="choiceGroup">
-                <label class="choiceChip">
-                  <input type="radio" name="multiEpssMode" value="comma" checked />
-                  <span>Keep EPSS list (comma-separated)</span>
-                </label>
-                <label class="choiceChip">
-                  <input type="radio" name="multiEpssMode" value="max" />
-                  <span>Keep highest EPSS only</span>
-                </label>
-              </div>
-            </div>
           </div>
 
           <div class="subCard">
@@ -247,6 +233,20 @@ CVE-2022-27223"></textarea>
               <label class="choiceChip">
                 <input type="checkbox" id="excelColFound" checked />
                 <span>EPSS CVEs Found</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="subCard">
+            <div class="label">Multiple CVEs</div>
+            <div class="choiceGroup">
+              <label class="choiceChip">
+                <input type="radio" name="multiEpssMode" value="comma" checked />
+                <span>Keep EPSS list (comma-separated)</span>
+              </label>
+              <label class="choiceChip">
+                <input type="radio" name="multiEpssMode" value="max" />
+                <span>Keep highest EPSS only</span>
               </label>
             </div>
           </div>
