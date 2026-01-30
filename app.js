@@ -14,6 +14,7 @@ let uploadedWorkbook = null;
 let uploadedSheetName = "";
 let uploadedAoa = null;
 let uploadedFileName = "";
+let uploadedIsCsv = false;
 
 const $ = (id) => document.getElementById(id);
 
@@ -369,6 +370,7 @@ async function ensureXlsxLoaded(){
   if(window.XLSX) return true;
   if(!xlsxLoadPromise){
     const sources = [
+      "./vendor/xlsx.full.min.js",
       "https://cdn.sheetjs.com/xlsx-0/frontend/xlsx.full.min.js",
       "https://cdn.jsdelivr.net/npm/xlsx@0.20.1/dist/xlsx.full.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.1/xlsx.full.min.js"
@@ -386,6 +388,83 @@ async function ensureXlsxLoaded(){
     })();
   }
   return xlsxLoadPromise;
+}
+
+function parseCsvToAoa(text){
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  let i = 0;
+
+  const pushCell = () => {
+    row.push(cell);
+    cell = "";
+  };
+
+  const pushRow = () => {
+    rows.push(row);
+    row = [];
+  };
+
+  while(i < text.length){
+    const ch = text[i];
+    if(inQuotes){
+      if(ch === '"'){
+        const next = text[i + 1];
+        if(next === '"'){
+          cell += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i += 1;
+        continue;
+      }
+      cell += ch;
+      i += 1;
+      continue;
+    }
+
+    if(ch === '"'){
+      inQuotes = true;
+      i += 1;
+      continue;
+    }
+
+    if(ch === ","){
+      pushCell();
+      i += 1;
+      continue;
+    }
+
+    if(ch === "\r"){
+      if(text[i + 1] === "\n") i += 1;
+      pushCell();
+      pushRow();
+      i += 1;
+      continue;
+    }
+
+    if(ch === "\n"){
+      pushCell();
+      pushRow();
+      i += 1;
+      continue;
+    }
+
+    cell += ch;
+    i += 1;
+  }
+
+  pushCell();
+  if(row.length || rows.length === 0) pushRow();
+  return rows;
+}
+
+function aoaToCsv(aoa){
+  const esc = (s)=> `"${String(s ?? "").replaceAll('"','""')}"`;
+  return aoa.map(row => row.map(esc).join(",")).join("\n");
 }
 
 function getSelectedColumnIndex(){
@@ -465,8 +544,18 @@ function renderExcelPreview(aoa, selectedColumnIndex){
 }
 
 async function loadWorkbookFromFile(file){
+  const ext = getFileExtension(file.name);
+  if(ext === "csv"){
+    const text = await file.text();
+    const aoa = parseCsvToAoa(text);
+    if(aoa.length === 0) throw new Error("CSV file is empty.");
+    return { wb: null, sheetName: "CSV", aoa, isCsv: true };
+  }
+
   const hasXlsx = await ensureXlsxLoaded();
-  if(!hasXlsx) throw new Error("Excel engine failed to load.");
+  if(!hasXlsx){
+    throw new Error("Excel engine failed to load. Your browser blocked the SheetJS CDN. Use CSV upload or host ./vendor/xlsx.full.min.js.");
+  }
 
   const data = await file.arrayBuffer();
   const wb = XLSX.read(data, { type: "array" });
@@ -476,7 +565,7 @@ async function loadWorkbookFromFile(file){
   const aoa = aoaFromSheet(ws);
   if(aoa.length === 0) throw new Error("Excel sheet is empty.");
 
-  return { wb, sheetName, aoa };
+  return { wb, sheetName, aoa, isCsv: false };
 }
 
 document.addEventListener("DOMContentLoaded", ()=>{
@@ -593,6 +682,7 @@ document.addEventListener("DOMContentLoaded", ()=>{
     uploadedSheetName = "";
     uploadedAoa = null;
     uploadedFileName = "";
+    uploadedIsCsv = false;
     const previewStatus = $("excelPreviewStatus");
     if(previewStatus) previewStatus.textContent = "Upload a file to preview the sheet and choose a column.";
     const previewTable = $("excelPreviewTable");
@@ -618,11 +708,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
     try{
       setStatus(statusEl, "Loading preview…");
-      const { wb, sheetName, aoa } = await loadWorkbookFromFile(file);
+      const { wb, sheetName, aoa, isCsv } = await loadWorkbookFromFile(file);
       uploadedWorkbook = wb;
       uploadedSheetName = sheetName;
       uploadedAoa = aoa;
       uploadedFileName = file.name;
+      uploadedIsCsv = isCsv;
 
       const header = aoa[0] || [];
       buildColumnOptions(header);
@@ -665,11 +756,12 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
     try{
       if(!uploadedAoa || uploadedFileName !== file.name){
-        const { wb, sheetName, aoa } = await loadWorkbookFromFile(file);
+        const { wb, sheetName, aoa, isCsv } = await loadWorkbookFromFile(file);
         uploadedWorkbook = wb;
         uploadedSheetName = sheetName;
         uploadedAoa = aoa;
         uploadedFileName = file.name;
+        uploadedIsCsv = isCsv;
       }
 
       const aoa = [...uploadedAoa.map(row => [...row])];
@@ -783,18 +875,28 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
       renderChart(epssValuesForChart);
       setProgress(100);
-      setStatus(statusEl, "Done ✅ Exporting new Excel…");
+      setStatus(statusEl, "Done ✅ Exporting file…");
 
-      // Write new workbook
-      const outWb = XLSX.utils.book_new();
-      const outWs = sheetFromAOA(aoa);
-      XLSX.utils.book_append_sheet(outWb, outWs, sheetName);
+      if(uploadedIsCsv){
+        const outName = file.name.replace(/\.csv$/i,"") + "_epss.csv";
+        const csvOut = aoaToCsv(aoa);
+        downloadTextFile(outName, csvOut, "text/csv;charset=utf-8");
+        setStatus(statusEl, `Exported: ${outName}`);
+        toast("CSV exported ✅");
+      } else {
+        if(!window.XLSX){
+          throw new Error("Excel export requires SheetJS. Upload CSV or host ./vendor/xlsx.full.min.js.");
+        }
+        const outWb = XLSX.utils.book_new();
+        const outWs = sheetFromAOA(aoa);
+        XLSX.utils.book_append_sheet(outWb, outWs, sheetName);
 
-      const outName = file.name.replace(/\.xlsx$/i,"").replace(/\.xls$/i,"") + "_epss.xlsx";
-      XLSX.writeFile(outWb, outName);
+        const outName = file.name.replace(/\.xlsx$/i,"").replace(/\.xls$/i,"") + "_epss.xlsx";
+        XLSX.writeFile(outWb, outName);
 
-      setStatus(statusEl, `Exported: ${outName}`);
-      toast("Excel exported ✅");
+        setStatus(statusEl, `Exported: ${outName}`);
+        toast("Excel exported ✅");
+      }
     }catch(e){
       setStatus(statusEl, "");
       setProgress(0);
