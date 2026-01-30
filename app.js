@@ -828,6 +828,20 @@ async function loadWorkbookFromFile(file){
 }
 
 document.addEventListener("DOMContentLoaded", ()=>{
+  // Theme toggle
+  const themeToggle = $("themeToggle");
+  const storedTheme = localStorage.getItem("theme");
+  if(storedTheme){
+    document.documentElement.setAttribute("data-theme", storedTheme);
+  }
+  if(themeToggle){
+    themeToggle.checked = document.documentElement.getAttribute("data-theme") === "dark";
+    themeToggle.addEventListener("change", ()=>{
+      const next = themeToggle.checked ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+    });
+  }
   // Tabs
   document.querySelectorAll(".tab").forEach(btn=>{
     btn.addEventListener("click", ()=>{

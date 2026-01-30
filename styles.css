@@ -1,6 +1,18 @@
 :root{
   --text:#0b1020;
   --muted:#3a4666;
+  --bg1: rgba(255,47,214,.55);
+  --bg2: rgba(34,211,255,.55);
+  --bg3: rgba(45,255,179,.45);
+  --bg4: rgba(255,180,45,.45);
+  --bg5a: rgba(255,240,74,.35);
+  --bg5b: rgba(138,91,255,.15);
+  --bg5c: rgba(255,47,214,.20);
+  --cardA: rgba(255,255,255,.72);
+  --cardB: rgba(255,255,255,.42);
+  --border: rgba(255,255,255,.75);
+  --softBg: rgba(255,255,255,.50);
+  --shadow: 0 22px 60px rgba(0,0,0,.18);
 
   --pink:#ff2fd6;
   --purple:#8a5bff;
@@ -9,8 +21,23 @@
   --orange:#ffb42d;
   --yellow:#fff04a;
   --red:#ff3b3b;
+}
 
-  --shadow: 0 22px 60px rgba(0,0,0,.18);
+[data-theme="dark"]{
+  --text:#e9eefc;
+  --muted:#b2bed8;
+  --bg1: rgba(30,12,48,.8);
+  --bg2: rgba(10,30,50,.8);
+  --bg3: rgba(8,40,32,.75);
+  --bg4: rgba(50,30,10,.75);
+  --bg5a: rgba(20,20,30,.9);
+  --bg5b: rgba(35,20,55,.7);
+  --bg5c: rgba(25,10,35,.6);
+  --cardA: rgba(14,18,34,.82);
+  --cardB: rgba(14,18,34,.62);
+  --border: rgba(255,255,255,.12);
+  --softBg: rgba(20,24,42,.75);
+  --shadow: 0 22px 60px rgba(0,0,0,.55);
 }
 
 *{box-sizing:border-box}
@@ -23,11 +50,11 @@ body{
   overflow-x:hidden;
 
   background:
-    radial-gradient(1200px 900px at 10% -10%, rgba(255,47,214,.55), transparent 55%),
-    radial-gradient(1000px 800px at 90% -10%, rgba(34,211,255,.55), transparent 55%),
-    radial-gradient(1100px 900px at 40% 115%, rgba(45,255,179,.45), transparent 60%),
-    radial-gradient(900px 700px at 95% 70%, rgba(255,180,45,.45), transparent 60%),
-    linear-gradient(135deg, rgba(255,240,74,.35), rgba(138,91,255,.15), rgba(255,47,214,.20));
+    radial-gradient(1200px 900px at 10% -10%, var(--bg1), transparent 55%),
+    radial-gradient(1000px 800px at 90% -10%, var(--bg2), transparent 55%),
+    radial-gradient(1100px 900px at 40% 115%, var(--bg3), transparent 60%),
+    radial-gradient(900px 700px at 95% 70%, var(--bg4), transparent 60%),
+    linear-gradient(135deg, var(--bg5a), var(--bg5b), var(--bg5c));
 }
 
 /* Floating blobs */
@@ -36,10 +63,10 @@ body::before{
   position:fixed;
   inset:-60px;
   background:
-    radial-gradient(320px 260px at 15% 25%, rgba(255,47,214,.55), transparent 60%),
-    radial-gradient(340px 280px at 75% 30%, rgba(34,211,255,.50), transparent 62%),
-    radial-gradient(360px 300px at 30% 85%, rgba(45,255,179,.42), transparent 64%),
-    radial-gradient(380px 320px at 85% 85%, rgba(255,180,45,.42), transparent 66%);
+    radial-gradient(320px 260px at 15% 25%, var(--bg1), transparent 60%),
+    radial-gradient(340px 280px at 75% 30%, var(--bg2), transparent 62%),
+    radial-gradient(360px 300px at 30% 85%, var(--bg3), transparent 64%),
+    radial-gradient(380px 320px at 85% 85%, var(--bg4), transparent 66%);
   filter: blur(18px);
   z-index:-1;
   animation: blobs 10s ease-in-out infinite alternate;
@@ -55,8 +82,8 @@ body::before{
 .topbar{
   position:sticky;top:0;z-index:50;
   backdrop-filter: blur(14px);
-  background: rgba(255,255,255,.45);
-  border-bottom: 1px solid rgba(255,255,255,.7);
+  background: color-mix(in srgb, var(--cardA) 70%, transparent);
+  border-bottom: 1px solid var(--border);
 }
 .topbar__inner{display:flex;align-items:center;justify-content:space-between;gap:12px}
 
@@ -75,8 +102,8 @@ body::before{
 
 /* Cards */
 .card{
-  background: linear-gradient(180deg, rgba(255,255,255,.72), rgba(255,255,255,.42));
-  border: 1px solid rgba(255,255,255,.75);
+  background: linear-gradient(180deg, var(--cardA), var(--cardB));
+  border: 1px solid var(--border);
   border-radius: 26px;
   box-shadow: var(--shadow);
   padding: 18px;
@@ -87,7 +114,7 @@ body::before{
 }
 .tabPanel--sticky{overflow:visible;}
 .card--soft{
-  background: rgba(255,255,255,.50);
+  background: var(--softBg);
   box-shadow:none;
 }
 
@@ -211,8 +238,8 @@ h3{margin:0 0 10px;font-size:18px}
   width:100%;
   padding:12px 12px;
   border-radius:16px;
-  border:1px solid rgba(255,255,255,.85);
-  background: rgba(255,255,255,.62);
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--cardA) 80%, transparent);
   color: rgba(8,16,32,.9);
   outline:none;
   transition: box-shadow .15s ease, transform .12s ease;
@@ -252,8 +279,8 @@ textarea.input{resize:vertical}
   gap:8px;
   padding:8px 12px;
   border-radius:999px;
-  border:1px solid rgba(255,255,255,.85);
-  background: linear-gradient(135deg, rgba(255,47,214,.14), rgba(34,211,255,.12), rgba(45,255,179,.12));
+  border:1px solid var(--border);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pink) 22%, transparent), color-mix(in srgb, var(--blue) 18%, transparent), color-mix(in srgb, var(--mint) 18%, transparent));
   font-size:12px;
   font-weight:1000;
 }
@@ -264,8 +291,8 @@ textarea.input{resize:vertical}
   margin-top:12px;
   padding:12px;
   border-radius:18px;
-  border:1px solid rgba(255,255,255,.75);
-  background: rgba(255,255,255,.48);
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--cardA) 70%, transparent);
 }
 
 /* Buttons (Candy) */
@@ -292,9 +319,9 @@ textarea.input{resize:vertical}
 .btn:disabled{ opacity:.65; cursor:not-allowed; transform:none; }
 
 .btn--ghost{
-  background: rgba(255,255,255,.55);
+  background: color-mix(in srgb, var(--cardA) 75%, transparent);
   color: rgba(8,16,32,.9);
-  border:1px solid rgba(255,255,255,.85);
+  border:1px solid var(--border);
   box-shadow: 0 12px 30px rgba(0,0,0,.10);
 }
 .btn--small{padding:8px 10px;border-radius:14px;font-size:12px}
@@ -362,8 +389,8 @@ textarea.input{resize:vertical}
 .tableWrap{
   overflow:auto;
   border-radius: 16px;
-  border:1px solid rgba(255,255,255,.75);
-  background: rgba(255,255,255,.38);
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--cardA) 60%, transparent);
 }
 .tableWrap--results{max-height: 320px;}
 .tableWrap--preview{max-height: min(60vh, 520px);}
@@ -391,7 +418,7 @@ textarea.input{resize:vertical}
 }
 .table th{
   position:sticky;top:0;
-  background: linear-gradient(135deg, rgba(255,47,214,.22), rgba(34,211,255,.18), rgba(45,255,179,.18));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pink) 22%, transparent), color-mix(in srgb, var(--blue) 18%, transparent), color-mix(in srgb, var(--mint) 18%, transparent));
   text-align:left;
   font-weight:1000;
   color: rgba(8,16,32,.92);
@@ -486,8 +513,8 @@ textarea.input{resize:vertical}
   position:fixed;
   right:16px;
   bottom:16px;
-  background: rgba(255,255,255,.82);
-  border:1px solid rgba(255,255,255,.90);
+  background: color-mix(in srgb, var(--cardA) 80%, transparent);
+  border:1px solid var(--border);
   border-radius:18px;
   padding:12px 14px;
   box-shadow: var(--shadow);
@@ -502,6 +529,20 @@ textarea.input{resize:vertical}
 
 /* Header actions + Developed badge */
 .topbar__actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.themeToggle{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  background: color-mix(in srgb, var(--cardA) 75%, transparent);
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+}
+.themeToggle input{ accent-color: var(--purple); }
+.themeToggle__label{ color: var(--text); }
 
 .devBadge{
   display:flex;
