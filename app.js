@@ -479,6 +479,15 @@ function getMultiEpssMode(){
   return selected?.value || "comma";
 }
 
+function getExcelExportColumns(){
+  return {
+    epss: $("excelColEpss")?.checked ?? true,
+    pct: $("excelColPercentile")?.checked ?? true,
+    date: $("excelColDate")?.checked ?? true,
+    found: $("excelColFound")?.checked ?? true
+  };
+}
+
 function detectDefaultColumn(header){
   const idx = header.findIndex(h => String(h).toLowerCase().includes("cve"));
   return idx >= 0 ? idx : 0;
@@ -768,10 +777,22 @@ document.addEventListener("DOMContentLoaded", ()=>{
       const sheetName = uploadedSheetName;
       const selectedColumnIndex = getSelectedColumnIndex();
       const multiMode = getMultiEpssMode();
+      const exportCols = getExcelExportColumns();
+
+      if(!exportCols.epss && !exportCols.pct && !exportCols.date && !exportCols.found){
+        setStatus(statusEl, "");
+        toast("Select at least one column to add", "error");
+        setButtonLoading(btn, false);
+        return;
+      }
 
       // Ensure header row exists
       const header = aoa[0] || [];
-      const addCols = ["EPSS Score", "EPSS Percentile", "EPSS Date", "EPSS CVEs Found"];
+      const addCols = [];
+      if(exportCols.epss) addCols.push("EPSS Score");
+      if(exportCols.pct) addCols.push("EPSS Percentile");
+      if(exportCols.date) addCols.push("EPSS Date");
+      if(exportCols.found) addCols.push("EPSS CVEs Found");
       addCols.forEach(c => header.push(c));
       aoa[0] = header;
 
@@ -858,7 +879,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
         const foundList = cves.join(", ");
 
-        row.push(epssOut, pctOut, dateOut, foundList);
+        if(exportCols.epss) row.push(epssOut);
+        if(exportCols.pct) row.push(pctOut);
+        if(exportCols.date) row.push(dateOut);
+        if(exportCols.found) row.push(foundList);
         aoa[r] = row;
 
         if(epssOut){
